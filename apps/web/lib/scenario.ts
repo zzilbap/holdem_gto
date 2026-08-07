@@ -7,6 +7,7 @@ import {
   type SpotActionNode,
   type SpotTree,
 } from '@holdem/solver';
+import { subject } from './korean';
 import { getSpot, type PreflopData } from './preflop-data';
 
 /**
@@ -122,39 +123,63 @@ export function scenarioTitle(scenario: Scenario): string {
 export function describeScenario(scenario: Scenario, config: PreflopConfig): string {
   const me = POSITION_LABELS_KO[scenario.hero];
   const blinds = config.smallBlind + config.bigBlind;
+  const heroIndex = POSITIONS_6MAX.indexOf(scenario.hero);
+  const behind = POSITIONS_6MAX.length - heroIndex - 1;
 
   switch (scenario.kind) {
     case 'open': {
       const size = config.openSize[scenario.hero];
+      /*
+       * UTG는 앞에 아무도 없다. "앞사람들이 모두 폴드했어요"라고 하면 틀린 말이고,
+       * 초보자는 그 한 문장에서 포지션 개념을 잘못 잡는다.
+       */
+      const before =
+        heroIndex === 0
+          ? '이번 판에서 당신이 가장 먼저 행동합니다.'
+          : `앞자리 ${heroIndex}명이 모두 폴드했어요.`;
+      const after =
+        behind > 0
+          ? ` 뒤에는 아직 ${behind}명이 남아 있습니다.`
+          : '';
       return (
-        `당신은 ${me.full}(${scenario.hero})입니다. 앞사람들이 모두 폴드했어요. ` +
+        `당신은 ${me.full}(${scenario.hero})입니다. ${before}${after} ` +
         `지금 팟에는 블라인드 ${fmt(blinds)}bb가 놓여 있고, 들어가려면 ${fmt(size)}bb를 걸어야 합니다.`
       );
     }
     case 'vs-open': {
       const villain = POSITION_LABELS_KO[scenario.villain];
+      const villainIndex = POSITIONS_6MAX.indexOf(scenario.villain);
       const size = config.openSize[scenario.villain];
       const owed = size - blindOf(scenario.hero, config);
+      const villainName = `${villain.full}(${scenario.villain})`;
+
+      // 오프너와 나 사이는 이미 접었지만, 내 뒤는 아직 차례가 오지 않았다.
+      const between = heroIndex - villainIndex - 1;
+      const betweenText = between > 0 ? ` 사이 ${between}명은 접었습니다.` : '';
+      const behindText = behind > 0 ? ` 뒤에는 아직 ${behind}명이 남아 있습니다.` : '';
+
       return (
-        `당신은 ${me.full}(${scenario.hero})입니다. ${villain.full}(${scenario.villain})가 ` +
-        `${fmt(size)}bb로 레이즈했고 나머지는 폴드했어요. ` +
+        `당신은 ${me.full}(${scenario.hero})입니다. ${subject(villainName)} ` +
+        `${fmt(size)}bb로 레이즈했어요.${betweenText}${behindText} ` +
         `콜하려면 ${fmt(owed)}bb를 더 내면 됩니다.`
       );
     }
     case 'vs-3bet': {
       const villain = POSITION_LABELS_KO[scenario.villain];
       const open = config.openSize[scenario.hero];
+      const villainName = `${villain.full}(${scenario.villain})`;
+      // 3벳까지 오갔으면 나와 상대를 뺀 전원이 이미 답을 마쳤다.
       return (
         `당신은 ${me.full}(${scenario.hero})로 ${fmt(open)}bb 레이즈했습니다. ` +
-        `그런데 ${villain.full}(${scenario.villain})가 그 위에 다시 레이즈(3벳)했어요. ` +
-        `이제 접을지, 받을지, 더 올릴지 정해야 합니다.`
+        `그런데 ${subject(villainName)} 그 위에 다시 레이즈(3벳)했고 나머지는 모두 접었어요. ` +
+        `이제 둘만 남았습니다 — 접을지, 받을지, 더 올릴지 정해야 합니다.`
       );
     }
     case 'vs-4bet': {
       const villain = POSITION_LABELS_KO[scenario.villain];
       return (
         `${villain.full}(${scenario.villain})의 레이즈에 당신이 ${me.full}(${scenario.hero})로 ` +
-        `재레이즈(3벳)했는데, 상대가 또 올렸습니다(4벳). ` +
+        `재레이즈(3벳)했는데, 상대가 또 올렸습니다(4벳). 나머지는 모두 접었어요. ` +
         `여기까지 왔다면 상대 레인지는 아주 강합니다.`
       );
     }

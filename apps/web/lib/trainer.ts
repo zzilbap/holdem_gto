@@ -6,6 +6,7 @@ import {
 } from '@holdem/poker-core';
 import { POSITIONS_6MAX, type Position } from '@holdem/solver';
 
+import { subject, topic } from './korean';
 import type { PreflopData } from './preflop-data';
 import { getAdvice, listScenariosFor, scenarioTitle, type AdviceOption, type Scenario } from './scenario';
 
@@ -194,29 +195,6 @@ export function gradeAnswer(question: TrainerQuestion, chosenKind: string): Trai
         : `${hand}의 ${topic(chosen.name)} ${pct(chosen.frequency)}뿐입니다. ` +
           `${subject(best.name)} ${pct(best.frequency)}로 주된 선택입니다.`,
   };
-}
-
-/**
- * 한국어 조사는 앞 글자 받침에 따라 갈린다.
- *
- * "레이즈이 더 자주" 같은 문장이 나오면 초보자용 도구로서 신뢰를 잃는다.
- * 액션 이름이 늘어날 때마다 손으로 맞추는 대신 받침을 보고 정한다.
- */
-function hasFinalConsonant(word: string): boolean {
-  const last = word.charCodeAt(word.length - 1);
-  // 한글 음절이 아니면(숫자·영문 등) 받침 없는 것으로 본다.
-  if (Number.isNaN(last) || last < 0xac00 || last > 0xd7a3) return false;
-  return (last - 0xac00) % 28 !== 0;
-}
-
-/** 주격 조사 — 레이즈가 / 폴드가 아닌 폴드이… 가 아니라 "폴드가"는 틀리므로 이/가. */
-function subject(word: string): string {
-  return `${word}${hasFinalConsonant(word) ? '이' : '가'}`;
-}
-
-/** 주제 조사 은/는. */
-function topic(word: string): string {
-  return `${word}${hasFinalConsonant(word) ? '은' : '는'}`;
 }
 
 // ---------------------------------------------------------------------------

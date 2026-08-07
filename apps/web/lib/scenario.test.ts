@@ -63,6 +63,8 @@ describe('상황 설명 문장', () => {
     expect(text).toContain('버튼');
     expect(text).toContain('모두 폴드');
     expect(text).toContain('bb');
+    // 포지션 이름 뒤 조사도 받침에 맞아야 한다.
+    expect(text).not.toContain('버튼가');
     console.log(`\n[오픈 상황]\n  ${text}`);
   });
 
@@ -71,6 +73,7 @@ describe('상황 설명 문장', () => {
     expect(text).toContain('빅블라인드');
     expect(text).toContain('버튼');
     expect(text).toMatch(/더 내면/);
+    expect(text).not.toContain(')가 ');
     console.log(`[오픈 대응 상황]\n  ${text}`);
   });
 });
@@ -191,5 +194,46 @@ describe('결론이 상식과 맞는가', () => {
     console.log(`[혼합 예시] ${example}`);
     console.log(`섞어 치는 패가 나오는 칸 ${found}개`);
     expect(found).toBeGreaterThan(0);
+  });
+});
+
+describe('상황 문장이 자리마다 맞는가', () => {
+  it('UTG에는 "앞사람이 폴드했다"고 쓰지 않는다', () => {
+    // UTG는 첫 번째 자리다. 앞에 아무도 없다.
+    const text = describeScenario({ kind: 'open', hero: 'UTG' }, data.config);
+    expect(text).not.toContain('앞자리');
+    expect(text).not.toContain('앞사람');
+    expect(text).toContain('가장 먼저 행동');
+    console.log(`\n  [UTG 오픈]\n    ${text}`);
+  });
+
+  it('뒷자리는 앞사람이 몇 명 접었는지 알려준다', () => {
+    const text = describeScenario({ kind: 'open', hero: 'BTN' }, data.config);
+    expect(text).toContain('앞자리 3명');
+    expect(text).toContain('뒤에는 아직 2명');
+    console.log(`  [BTN 오픈]\n    ${text}`);
+  });
+
+  it('BB 오픈 상황은 존재하지 않는다', () => {
+    const kinds = listScenariosFor('BB').map((s) => s.kind);
+    expect(kinds).not.toContain('open');
+  });
+
+  it('오픈에 대응할 때 내 뒤에 남은 사람을 알려준다', () => {
+    // BTN이 UTG 오픈에 대응 — SB·BB는 아직 행동 전이다.
+    const text = describeScenario({ kind: 'vs-open', hero: 'BTN', villain: 'UTG' }, data.config);
+    expect(text).toContain('뒤에는 아직 2명');
+    console.log(`  [BTN vs UTG 오픈]\n    ${text}`);
+  });
+
+  it('마지막 자리(BB)에는 "뒤에 남았다"고 쓰지 않는다', () => {
+    const text = describeScenario({ kind: 'vs-open', hero: 'BB', villain: 'BTN' }, data.config);
+    expect(text).not.toContain('뒤에는');
+    console.log(`  [BB vs BTN 오픈]\n    ${text}\n`);
+  });
+
+  it('3벳 이후에는 둘만 남았다고 알려준다', () => {
+    const text = describeScenario({ kind: 'vs-3bet', hero: 'UTG', villain: 'BB' }, data.config);
+    expect(text).toContain('나머지는 모두 접었');
   });
 });
