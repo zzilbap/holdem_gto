@@ -161,6 +161,32 @@ export function describeScenario(scenario: Scenario, config: PreflopConfig): str
   }
 }
 
+/**
+ * 상황마다 "왜 이 선택지밖에 없는지"를 알려주는 한 줄.
+ *
+ * 앞이 다 접힌 자리에서 콜 버튼이 없는 걸 보고 오류로 오해하기 쉽다.
+ * 실제로 그 질문을 받았고, 화면이 설명하지 않은 게 문제였다.
+ */
+export function scenarioHint(scenario: Scenario, config: PreflopConfig): string | null {
+  if (scenario.kind !== 'open') return null;
+
+  if (scenario.hero === 'SB') {
+    return (
+      '여기서 "콜"이 없는 건 맞출 금액이 없기 때문입니다. ' +
+      `${config.bigBlind}bb만 내고 들어가는 걸 림프라고 하는데, ` +
+      '스몰블라인드에서는 실제 해법에도 림프가 있습니다. 저희는 그걸 빼고 계산했으니 ' +
+      '이 자리만큼은 실제와 조금 다를 수 있습니다.'
+    );
+  }
+
+  return (
+    '여기서 "콜"이 없는 건 맞출 금액이 없기 때문입니다 — 앞사람이 다 접었으니까요. ' +
+    `${config.bigBlind}bb만 내고 살짝 들어가는 걸 림프라고 부르는데, ` +
+    '뒤에 사람이 남은 자리에서는 실제 해법에서도 거의 쓰지 않습니다. ' +
+    '열려면 제대로 열고, 아니면 접는 게 맞습니다.'
+  );
+}
+
 function blindOf(position: Position, config: PreflopConfig): number {
   if (position === 'SB') return config.smallBlind;
   if (position === 'BB') return config.bigBlind;

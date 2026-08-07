@@ -19,6 +19,7 @@ import {
   describeScenario,
   getAdvice,
   listScenariosFor,
+  scenarioHint,
   scenarioId,
   scenarioTitle,
   type Scenario,
@@ -248,6 +249,10 @@ export default function Page() {
                   <T k="bb">bb</T> = 빅블라인드 1개. 블라인드가 500/1000원인 판이면 1bb는
                   1,000원입니다.
                 </span>
+                {(() => {
+                  const hint = scenarioHint(scenario, data.config);
+                  return hint ? <span className="situation-note">{hint}</span> : null;
+                })()}
               </div>
 
               <div className="workspace">
