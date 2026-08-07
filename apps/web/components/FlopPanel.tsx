@@ -6,7 +6,7 @@ import { useMemo, useState } from 'react';
 
 import { HandGrid } from '@/components/HandGrid';
 import { describeLine, gridOptions, handAdvice } from '@/lib/flop-advice';
-import { listFlopSetups } from '@/lib/flop-setup';
+import { potTypeLabel, type FlopLine, type PotType } from '@/lib/flop-setup';
 import { walkLine, type FlopState } from '@/lib/use-flop';
 
 /**
@@ -18,6 +18,14 @@ import { walkLine, type FlopState } from '@/lib/use-flop';
  */
 
 const SUIT_LABEL: Record<string, string> = { c: '♣', d: '♦', h: '♥', s: '♠' };
+
+/** 팟 종류별로 묶어 드롭다운에 optgroup으로 넣는다. 45개를 평평하게 두면 못 찾는다. */
+function groupLines(lines: FlopLine[]): Array<[PotType, FlopLine[]]> {
+  const order: PotType[] = ['srp', '3bet', '4bet'];
+  return order
+    .map((type) => [type, lines.filter((line) => line.potType === type)] as [PotType, FlopLine[]])
+    .filter(([, group]) => group.length > 0);
+}
 
 export function FlopPanel({ flop }: { flop: FlopState }) {
   const [selectedHand, setSelectedHand] = useState<number | null>(null);
@@ -57,20 +65,29 @@ export function FlopPanel({ flop }: { flop: FlopState }) {
           </div>
           <select
             className="select"
-            value={`${flop.setup?.opener}>${flop.setup?.caller}`}
-            onChange={(event) => {
-              const [opener, caller] = event.target.value.split('>') as [Position, Position];
-              flop.setOpener(opener);
-              flop.setCaller(caller);
-            }}
+            value={flop.selectedLineId ?? ''}
+            onChange={(event) => flop.selectLine(event.target.value)}
           >
-            {listFlopSetups().map(({ opener, caller }) => (
-              <option key={`${opener}>${caller}`} value={`${opener}>${caller}`}>
-                {POSITION_LABELS_KO[opener].full}({opener}) 레이즈 →{' '}
-                {POSITION_LABELS_KO[caller].full}({caller}) 콜
-              </option>
+            {groupLines(flop.lines).map(([type, lines]) => (
+              <optgroup key={type} label={potTypeLabel(type)}>
+                {lines.map((line) => (
+                  <option key={line.id} value={line.id}>
+                    {line.actionText}
+                  </option>
+                ))}
+              </optgroup>
             ))}
           </select>
+          {flop.setup && (
+            <p className="field-help">
+              팟 {flop.setup.pot}bb · 남은 칩 {flop.setup.effectiveStack}bb ·{' '}
+              {POSITION_LABELS_KO[flop.setup.oop].full}가 먼저 행동
+            </p>
+          )}
+          <p className="field-help multiway-note">
+            세 명 이상이 보는 팟은 아직 없습니다. 솔버가 2인 전용이라 그렇고,
+            사이드팟과 3자 쇼다운을 다루려면 엔진을 새로 짜야 합니다.
+          </p>
         </div>
 
         <div className="control-group">
@@ -159,8 +176,11 @@ export function FlopPanel({ flop }: { flop: FlopState }) {
         {flop.solution && current && (
           <>
             <div className="situation">
-              {flop.solution.setup.label}하고 둘이서 플롭을 봤습니다. 팟{' '}
-              {flop.solution.setup.pot}bb, 남은 칩 {flop.solution.setup.effectiveStack}bb.
+              {'actionText' in flop.solution.setup
+                ? (flop.solution.setup as FlopLine).actionText
+                : flop.solution.setup.label}
+              . 둘이서 플롭을 봤습니다. 팟 {flop.solution.setup.pot}bb, 남은 칩{' '}
+              {flop.solution.setup.effectiveStack}bb.
               <span className="situation-note">
                 {POSITION_LABELS_KO[flop.solution.setup.oop].full}가 먼저 행동합니다 ·{' '}
                 지금 보는 지점: {describeLine(flop.solution.tree, flop.line)}

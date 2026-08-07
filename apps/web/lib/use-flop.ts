@@ -9,7 +9,7 @@ import {
 } from '@holdem/solver';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { buildFlopSetup, type FlopSetup } from './flop-setup';
+import { enumerateFlopLines, type FlopLine, type FlopSetup } from './flop-setup';
 import type { PreflopData } from './preflop-data';
 import type { FlopWorkerInbound, FlopWorkerOutbound } from '@/workers/flop.worker';
 
@@ -43,17 +43,19 @@ export interface FlopProgress {
 }
 
 export interface FlopState {
-  setup: FlopSetup | null;
+  /** 플롭까지 이어지는 모든 2인 라인. 싱글레이즈뿐 아니라 3벳·4벳 팟도 들어 있다. */
+  lines: FlopLine[];
+  setup: FlopLine | null;
+  selectedLineId: string | null;
   board: Card[];
   boardText: string;
   solution: FlopSolution | null;
   busy: boolean;
   progress: FlopProgress | null;
   error: string | null;
-  /** 지금 보고 있는 액션 경로. 각 원소는 그 노드에서 고른 액션 번호다. */
+  /** 지금 보고 있는 플롭 액션 경로. 각 원소는 그 노드에서 고른 액션 번호다. */
   line: number[];
-  setOpener: (position: FlopSetup['opener']) => void;
-  setCaller: (position: FlopSetup['caller']) => void;
+  selectLine: (id: string) => void;
   setBoardText: (text: string) => void;
   randomBoard: () => void;
   solve: () => void;
@@ -63,8 +65,7 @@ export interface FlopState {
 }
 
 export function useFlop(data: PreflopData | null): FlopState {
-  const [opener, setOpener] = useState<FlopSetup['opener']>('BTN');
-  const [caller, setCaller] = useState<FlopSetup['caller']>('BB');
+  const [selectedLineId, setSelectedLineId] = useState<string | null>(null);
   const [boardText, setBoardText] = useState('Kh8d3c');
   const [solution, setSolution] = useState<FlopSolution | null>(null);
   const [busy, setBusy] = useState(false);
@@ -82,14 +83,13 @@ export function useFlop(data: PreflopData | null): FlopState {
     };
   }, []);
 
+  // 라인 목록은 프리플롭 해답에서 한 번만 뽑는다. 45개쯤 되고 계산이 가볍지 않다.
+  const lines = useMemo(() => (data ? enumerateFlopLines(data) : []), [data]);
+
   const setup = useMemo(() => {
-    if (!data) return null;
-    try {
-      return buildFlopSetup(data, opener, caller);
-    } catch {
-      return null;
-    }
-  }, [data, opener, caller]);
+    if (lines.length === 0) return null;
+    return lines.find((line) => line.id === selectedLineId) ?? lines[0]!;
+  }, [lines, selectedLineId]);
 
   const board = useMemo(() => {
     try {
@@ -100,11 +100,11 @@ export function useFlop(data: PreflopData | null): FlopState {
     }
   }, [boardText]);
 
-  // 보드나 스팟이 바뀌면 이전 결과는 더 이상 그 상황의 답이 아니다.
+  // 보드나 상황이 바뀌면 이전 결과는 더 이상 그 상황의 답이 아니다.
   useEffect(() => {
     setSolution(null);
     setLine([]);
-  }, [boardText, opener, caller]);
+  }, [boardText, selectedLineId]);
 
   const solve = useCallback(() => {
     if (!setup || board.length !== 3 || busy) return;
@@ -202,7 +202,9 @@ export function useFlop(data: PreflopData | null): FlopState {
   }, []);
 
   return {
+    lines,
     setup,
+    selectedLineId: setup?.id ?? null,
     board,
     boardText,
     solution,
@@ -210,8 +212,7 @@ export function useFlop(data: PreflopData | null): FlopState {
     progress,
     error,
     line,
-    setOpener,
-    setCaller,
+    selectLine: setSelectedLineId,
     setBoardText,
     randomBoard,
     solve,
