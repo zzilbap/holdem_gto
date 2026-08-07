@@ -2,12 +2,15 @@
 
 import { handIndexToString, handStringToIndex } from '@holdem/poker-core';
 import type { Position } from '@holdem/solver';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { HandGrid } from '@/components/HandGrid';
+import { HistoryPanel } from '@/components/HistoryPanel';
 import { SeatPicker } from '@/components/SeatPicker';
 import { SettingsPanel } from '@/components/SettingsPanel';
 import { Verdict } from '@/components/Verdict';
+import type { HistoryEntry } from '@/lib/history';
+import { useHistory } from '@/lib/use-history';
 import { usePreflop } from '@/lib/use-preflop';
 import {
   describeScenario,
@@ -18,13 +21,21 @@ import {
   type Scenario,
 } from '@/lib/scenario';
 
+type Tab = 'solver' | 'history';
+
 export default function Page() {
   const preflop = usePreflop();
   const { data, error } = preflop;
 
+  const [tab, setTab] = useState<Tab>('solver');
   const [hero, setHero] = useState<Position>('BTN');
   const [scenarioIndex, setScenarioIndex] = useState(0);
   const [handIndex, setHandIndex] = useState<number>(() => handStringToIndex('AKo'));
+
+  /** 기록에서 복원할 때, 자리를 먼저 바꾼 뒤 다음 렌더에서 상황을 맞춘다. */
+  const [pendingScenario, setPendingScenario] = useState<string | null>(null);
+  /** 복원한 기록의 설정이 지금과 달라 다시 계산이 필요한 경우 안내한다. */
+  const [restoreNote, setRestoreNote] = useState<string | null>(null);
 
   const scenarios = useMemo(() => listScenariosFor(hero), [hero]);
 
@@ -33,11 +44,24 @@ export default function Page() {
     setScenarioIndex(0);
   }, [hero]);
 
+  // 위 effect가 0으로 되돌린 뒤에 실행되어야 하므로 선언 순서가 중요하다.
+  useEffect(() => {
+    if (!pendingScenario) return;
+    const index = scenarios.findIndex((item) => scenarioId(item) === pendingScenario);
+    if (index >= 0) setScenarioIndex(index);
+    setPendingScenario(null);
+  }, [pendingScenario, scenarios]);
+
   const scenario: Scenario | undefined = scenarios[scenarioIndex] ?? scenarios[0];
 
   const advice = useMemo(
     () => (data && scenario ? getAdvice(data, scenario, handIndex) : null),
     [data, scenario, handIndex],
+  );
+
+  const history = useHistory(
+    { hero, scenario, handIndex, config: data?.config ?? null, advice },
+    tab === 'solver' && !preflop.busy,
   );
 
   const fills = useMemo(() => {
@@ -50,11 +74,61 @@ export default function Page() {
     };
   }, [data, scenario]);
 
+  const openHistoryEntry = useCallback(
+    (entry: HistoryEntry) => {
+      setHero(entry.hero);
+      setHandIndex(entry.handIndex);
+      setPendingScenario(scenarioId(entry.scenario));
+      setTab('solver');
+
+      const current = data?.config;
+      const sameSetup =
+        current &&
+        current.stack === entry.config.stack &&
+        current.openSize.UTG === entry.config.openSize.UTG;
+
+      if (!sameSetup) {
+        // 설정이 다르면 답도 다르다. 자동으로 재계산하면 수십 초가 걸리므로 사용자가 정하게 둔다.
+        preflop.setDraft(entry.config);
+        setRestoreNote(
+          `이 기록은 ${entry.config.stack}bb · 오픈 ${entry.config.openSize.UTG}bb 설정에서 본 것입니다. ` +
+            `지금 화면은 ${current?.stack}bb 기준이라 답이 다를 수 있어요. ` +
+            `왼쪽 설정에서 "이 설정으로 다시 계산"을 누르면 그때 상태로 맞춰집니다.`,
+        );
+      } else {
+        setRestoreNote(null);
+      }
+    },
+    [data, preflop],
+  );
+
   return (
     <div className="app">
       <header className="topbar">
         <h1>홀덤 GTO</h1>
-        <p className="tagline">상황을 고르면 뭘 해야 하는지 한 줄로 알려줍니다</p>
+        <div className="tabs" role="tablist">
+          <button
+            type="button"
+            className="tab"
+            role="tab"
+            aria-selected={tab === 'solver'}
+            onClick={() => setTab('solver')}
+          >
+            솔버
+          </button>
+          <button
+            type="button"
+            className="tab"
+            role="tab"
+            aria-selected={tab === 'history'}
+            onClick={() => setTab('history')}
+          >
+            기록
+            {history.entries.length > 0 && (
+              <span className="count">{history.entries.length}</span>
+            )}
+          </button>
+        </div>
         <span className="spacer" />
         {data && (
           <span className="meta">
@@ -68,7 +142,19 @@ export default function Page() {
         {error && <div className="centered error">문제가 생겼습니다: {error}</div>}
         {!data && !error && <div className="centered">전략 데이터를 불러오는 중…</div>}
 
-        {data && scenario && (
+        {data && scenario && tab === 'history' && (
+          <div className="history-page">
+            <HistoryPanel
+              entries={history.entries}
+              onOpen={openHistoryEntry}
+              onTogglePin={history.togglePin}
+              onRemove={history.remove}
+              onClear={history.clear}
+            />
+          </div>
+        )}
+
+        {data && scenario && tab === 'solver' && (
           <>
             <aside className="sidebar">
               <div className="control-group">
@@ -115,7 +201,10 @@ export default function Page() {
                         : null
                     }
                     onChange={preflop.setDraft}
-                    onApply={preflop.apply}
+                    onApply={() => {
+                      setRestoreNote(null);
+                      preflop.apply();
+                    }}
                     onCancel={preflop.cancel}
                     onReset={preflop.reset}
                   />
@@ -124,6 +213,7 @@ export default function Page() {
             </aside>
 
             <main className="main">
+              {restoreNote && <p className="restore-note">{restoreNote}</p>}
               <p className="situation">{describeScenario(scenario, data.config)}</p>
 
               <div className="workspace">
