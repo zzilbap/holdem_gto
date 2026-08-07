@@ -251,6 +251,158 @@ body {
   font-weight: 600;
 }
 
+/* ================================================================= 설정 */
+
+.settings {
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+}
+
+.field {
+  display: block;
+}
+
+.field-label {
+  display: block;
+  font-size: 12px;
+  color: var(--text-faint);
+  margin-bottom: 6px;
+}
+
+.field-label em {
+  font-style: normal;
+  color: var(--text);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.choice {
+  flex: 1 1 auto;
+  min-width: 34px;
+  padding: 5px 6px;
+  border-radius: 6px;
+  border: 1.5px solid var(--border);
+  background: var(--bg-sunken);
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s, color 0.12s;
+}
+
+.choice:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+.choice[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, var(--bg-raised));
+  color: var(--text);
+  font-weight: 650;
+}
+
+.choice:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.settings-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.primary-button {
+  flex: 1;
+  padding: 9px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  background: var(--accent);
+  color: #fff;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.primary-button:disabled {
+  background: var(--bg-sunken);
+  border-color: var(--border);
+  color: var(--text-faint);
+  cursor: default;
+}
+
+.link-button {
+  border: none;
+  background: none;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 4px 2px;
+}
+
+.link-button:hover {
+  color: var(--text);
+}
+
+.settings-note {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--text-faint);
+  line-height: 1.5;
+}
+
+.solve-status {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.progress-track {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--bg-sunken);
+  overflow: hidden;
+}
+
+.progress-value {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 999px;
+  transition: width 0.25s;
+}
+
+.solve-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11.5px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.custom-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 650;
+}
+
 /* ================================================================= 본문 */
 
 .main {

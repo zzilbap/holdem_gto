@@ -6,8 +6,9 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { HandGrid } from '@/components/HandGrid';
 import { SeatPicker } from '@/components/SeatPicker';
+import { SettingsPanel } from '@/components/SettingsPanel';
 import { Verdict } from '@/components/Verdict';
-import { loadPreflopData, type PreflopData } from '@/lib/preflop-data';
+import { usePreflop } from '@/lib/use-preflop';
 import {
   describeScenario,
   getAdvice,
@@ -18,18 +19,12 @@ import {
 } from '@/lib/scenario';
 
 export default function Page() {
-  const [data, setData] = useState<PreflopData | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const preflop = usePreflop();
+  const { data, error } = preflop;
 
   const [hero, setHero] = useState<Position>('BTN');
   const [scenarioIndex, setScenarioIndex] = useState(0);
   const [handIndex, setHandIndex] = useState<number>(() => handStringToIndex('AKo'));
-
-  useEffect(() => {
-    loadPreflopData()
-      .then(setData)
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
-  }, []);
 
   const scenarios = useMemo(() => listScenariosFor(hero), [hero]);
 
@@ -64,12 +59,13 @@ export default function Page() {
         {data && (
           <span className="meta">
             6맥스 · {data.config.stack}bb · 스팟 {data.spots.size}개
+            {preflop.isCustom && <span className="custom-badge">직접 계산</span>}
           </span>
         )}
       </header>
 
       <div className="body">
-        {error && <div className="centered error">데이터를 불러오지 못했습니다: {error}</div>}
+        {error && <div className="centered error">문제가 생겼습니다: {error}</div>}
         {!data && !error && <div className="centered">전략 데이터를 불러오는 중…</div>}
 
         {data && scenario && (
@@ -102,6 +98,29 @@ export default function Page() {
                   ))}
                 </div>
               </div>
+
+              {preflop.draft && preflop.applied && (
+                <div className="control-group">
+                  <div className="control-head">
+                    <span className="step">＋</span>
+                    <h2>설정 바꾸기</h2>
+                  </div>
+                  <SettingsPanel
+                    draft={preflop.draft}
+                    applied={preflop.applied}
+                    busy={preflop.busy}
+                    progress={
+                      preflop.progress
+                        ? { ratio: preflop.progress.ratio, label: preflop.progress.label }
+                        : null
+                    }
+                    onChange={preflop.setDraft}
+                    onApply={preflop.apply}
+                    onCancel={preflop.cancel}
+                    onReset={preflop.reset}
+                  />
+                </div>
+              )}
             </aside>
 
             <main className="main">
@@ -129,7 +148,12 @@ export default function Page() {
                         폴드
                       </span>
                       <span>
-                        <i style={{ background: 'var(--bg-sunken)', border: '1px solid var(--border-strong)' }} />
+                        <i
+                          style={{
+                            background: 'var(--bg-sunken)',
+                            border: '1px solid var(--border-strong)',
+                          }}
+                        />
                         해당 없음
                       </span>
                     </div>
@@ -160,8 +184,8 @@ export default function Page() {
                           <div className="v">{data.config.stack}bb</div>
                         </div>
                         <div className="stat">
-                          <div className="k">에퀴티 표본</div>
-                          <div className="v">{(data.meta.boardSamples / 1000).toFixed(0)}k보드</div>
+                          <div className="k">오픈 크기</div>
+                          <div className="v">{data.config.openSize.UTG}bb</div>
                         </div>
                         <div className="stat">
                           <div className="k">수렴 지표</div>
@@ -169,9 +193,20 @@ export default function Page() {
                         </div>
                       </div>
                       <p style={{ marginBottom: 0 }}>
-                        전략은 CFR로 직접 계산했습니다. 스팟 {data.spots.size}개를{' '}
-                        {data.meta.rounds}번 왕복하며 서로 맞췄고, 수렴 지표가 0에 가까울수록
-                        답이 안정적이라는 뜻입니다.
+                        {preflop.isCustom ? (
+                          <>
+                            바꾼 설정으로 이 브라우저에서 직접 계산했습니다
+                            {preflop.lastElapsedMs !== null &&
+                              ` (${(preflop.lastElapsedMs / 1000).toFixed(1)}초)`}
+                            . 기본 설정은 미리 더 오래 계산해 둔 것이라 조금 더 정밀합니다.
+                          </>
+                        ) : (
+                          <>
+                            전략은 CFR로 직접 계산했습니다. 스팟 {data.spots.size}개를{' '}
+                            {data.meta.rounds}번 왕복하며 서로 맞췄고, 수렴 지표가 0에 가까울수록
+                            답이 안정적이라는 뜻입니다.
+                          </>
+                        )}
                       </p>
                     </div>
                   </details>

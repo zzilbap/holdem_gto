@@ -1,10 +1,18 @@
 import {
   buildSpotTree,
+  solvePreflop,
   solveSpot,
+  spotKey,
   type RealizationModel,
   type SolveResult,
 } from '@holdem/solver';
-import type { SolveProgress, SolverTransport, SpotSolveRequest } from './transport';
+import type {
+  PreflopSolveRequest,
+  PreflopSolveResponse,
+  SolveProgress,
+  SolverTransport,
+  SpotSolveRequest,
+} from './transport';
 
 /**
  * 같은 스레드에서 바로 푸는 구현.
@@ -42,6 +50,42 @@ export class LocalSolverTransport implements SolverTransport {
     });
   }
 
+  async solvePreflop(
+    request: PreflopSolveRequest,
+    onProgress?: (progress: SolveProgress) => void,
+  ): Promise<PreflopSolveResponse> {
+    this.cancelled = false;
+    const startedAt = Date.now();
+
+    const solution = solvePreflop({
+      config: request.config,
+      equityTable: request.equityTable,
+      realization: this.deps.realization,
+      rounds: request.rounds,
+      iterationsPerSpot: request.iterationsPerSpot,
+      onProgress: onProgress
+        ? (done, total, label) => onProgress({ iteration: done, total, ratio: done / total, label })
+        : undefined,
+      shouldStop: () => this.cancelled,
+    });
+
+    const spots: PreflopSolveResponse['spots'] = {};
+    for (const [key, spot] of solution.spots) {
+      spots[key] = {
+        strategy: spot.result.strategy,
+        responderFold: spot.responderFoldProbability,
+      };
+    }
+
+    return {
+      openFrequency: { ...solution.openFrequency },
+      openEdge: { ...solution.openEdge },
+      spots,
+      lastRoundDrift: solution.lastRoundDrift,
+      elapsedMs: Date.now() - startedAt,
+    };
+  }
+
   cancel(): void {
     this.cancelled = true;
   }
@@ -50,3 +94,6 @@ export class LocalSolverTransport implements SolverTransport {
     this.cancelled = true;
   }
 }
+
+/** 트리 키 규칙을 바깥에서도 쓸 수 있게 다시 내보낸다. */
+export { spotKey };
