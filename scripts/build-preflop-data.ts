@@ -96,6 +96,19 @@ function main() {
         ];
       }),
     ),
+    // 스퀴즈 — 누가 열고 다른 사람이 3벳한 뒤 세 번째 사람이 결정하는 자리.
+    squeezes: Object.fromEntries(
+      [...solution.squeezes.values()].map((squeeze) => [
+        squeeze.key,
+        {
+          opener: squeeze.opener,
+          threeBettor: squeeze.threeBettor,
+          squeezer: squeeze.squeezer,
+          strategy: packUnit(squeeze.result.strategy),
+          threeBetRange: packUnit(squeeze.threeBetRange),
+        },
+      ]),
+    ),
   };
 
   mkdirSync(dirname(OUT_PATH), { recursive: true });

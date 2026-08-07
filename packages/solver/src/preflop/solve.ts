@@ -45,6 +45,17 @@ export interface SolvedSpot {
   openerEvIfContested: Float32Array;
 }
 
+export interface SolvedSqueeze {
+  key: string;
+  opener: Position;
+  threeBettor: Position;
+  squeezer: Position;
+  tree: SpotTree;
+  result: SolveResult;
+  /** 3벳한 사람이 이 스팟에 들고 들어온 레인지. */
+  threeBetRange: Float32Array;
+}
+
 export interface PreflopSolution {
   config: PreflopConfig;
   /** 포지션별 오픈 빈도(169칸). 이게 곧 RFI 차트다. */
@@ -52,6 +63,13 @@ export interface PreflopSolution {
   /** 오픈 EV에서 폴드 EV를 뺀 값. 0보다 크면 오픈이 이득이다. */
   openEdge: Record<Position, Float32Array>;
   spots: Map<string, SolvedSpot>;
+  /**
+   * 스퀴즈 스팟 — 누가 열고 다른 사람이 3벳한 뒤 세 번째 사람이 결정하는 자리.
+   *
+   * 기본 스팟이 다 수렴한 뒤 한 번만 푼다. 3벳 레인지가 확정되어야
+   * 그걸 상대로 스퀴저의 답을 낼 수 있기 때문이다.
+   */
+  squeezes: Map<string, SolvedSqueeze>;
   rounds: number;
   /** 마지막 라운드에서 오픈 빈도가 얼마나 움직였는지. 0에 가까우면 수렴했다. */
   lastRoundDrift: number;
@@ -61,10 +79,84 @@ export function spotKey(opener: Position, responder: Position): string {
   return `${opener}>${responder}`;
 }
 
+/**
+ * 스퀴즈 스팟의 키. "누가 열고, 누가 3벳했고, 누가 그 위에서 결정하는가".
+ *
+ * 예: `CO^BTN>BB` = CO가 열고 BTN이 3벳했는데 BB 차례.
+ */
+export function squeezeKey(
+  opener: Position,
+  threeBettor: Position,
+  squeezer: Position,
+): string {
+  return `${opener}^${threeBettor}>${squeezer}`;
+}
+
+/**
+ * 스퀴즈 상황을 2인 스팟으로 세운다.
+ *
+ * "CO 오픈 → BTN 3벳 → BB 차례"에서 BB가 상대할 사람은 사실상 BTN이다.
+ * CO는 3벳까지 맞았으니 대부분 접고, 그 2.5bb는 팟에 남는 죽은 돈이 된다.
+ *
+ * **근사임을 분명히 해둔다** — CO가 4벳으로 되받는 경우를 세지 않는다.
+ * 실제 해법에서 그 빈도는 낮지만 0은 아니다. 이걸 정확히 하려면 3인 프리플롭
+ * CFR이 필요하고, 그건 이 구조로는 못 한다.
+ */
+export function makeSqueezeDefinition(
+  opener: Position,
+  threeBettor: Position,
+  squeezer: Position,
+  threeBetTo: number,
+  config: PreflopConfig,
+): SpotDefinition {
+  const openTo = config.openSize[opener];
+
+  // 죽은 돈 = 오픈한 사람이 두고 갈 돈 + 이 셋에 끼지 않은 블라인드
+  let deadMoney = openTo;
+  const involved = new Set<Position>([opener, threeBettor, squeezer]);
+  if (!involved.has('SB')) deadMoney += config.smallBlind;
+  if (!involved.has('BB')) deadMoney += config.bigBlind;
+
+  return {
+    first: squeezer,
+    second: threeBettor,
+    deadMoney,
+    invested: [blindOf(squeezer, config), threeBetTo],
+    raiseCount: 2,
+    label: `${opener} ${fmtBb(openTo)}bb 오픈, ${threeBettor} ${fmtBb(threeBetTo)}bb 3벳, ${squeezer} 차례`,
+  };
+}
+
+/** 스퀴즈가 성립하는 (오픈, 3벳, 결정할 사람) 조합. 셋 다 자리 순서를 지켜야 한다. */
+export function enumerateSqueezeTriples(): Array<{
+  opener: Position;
+  threeBettor: Position;
+  squeezer: Position;
+}> {
+  const out: Array<{ opener: Position; threeBettor: Position; squeezer: Position }> = [];
+  for (const opener of OPENING_POSITIONS) {
+    const openerIndex = POSITIONS_6MAX.indexOf(opener);
+    for (let t = openerIndex + 1; t < POSITIONS_6MAX.length; t++) {
+      for (let s = t + 1; s < POSITIONS_6MAX.length; s++) {
+        out.push({
+          opener,
+          threeBettor: POSITIONS_6MAX[t]!,
+          squeezer: POSITIONS_6MAX[s]!,
+        });
+      }
+    }
+  }
+  return out;
+}
+
+function fmtBb(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toFixed(1);
+}
+
 export function solvePreflop(options: PreflopSolveOptions): PreflopSolution {
   const { config, equityTable, realization, rounds, iterationsPerSpot } = options;
   const pairs = enumerateSpotPairs();
-  const totalWork = rounds * pairs.length;
+  const totalWork = rounds * pairs.length + enumerateSqueezeTriples().length;
   let done = 0;
 
   const openFrequency = initialOpenRanges(equityTable);
@@ -123,7 +215,58 @@ export function solvePreflop(options: PreflopSolveOptions): PreflopSolution {
     lastRoundDrift = drift(previous, openFrequency);
   }
 
-  return { config, openFrequency, openEdge, spots, rounds, lastRoundDrift };
+  // 3벳 레인지가 확정된 뒤에 스퀴즈를 푼다. 순서가 반대면 상대할 레인지가 없다.
+  const squeezes = solveSqueezeSpots();
+
+  return { config, openFrequency, openEdge, spots, squeezes, rounds, lastRoundDrift };
+
+  function solveSqueezeSpots(): Map<string, SolvedSqueeze> {
+    const out = new Map<string, SolvedSqueeze>();
+    if (options.shouldStop?.()) return out;
+
+    for (const { opener, threeBettor, squeezer } of enumerateSqueezeTriples()) {
+      if (options.shouldStop?.()) break;
+
+      const base = spots.get(spotKey(opener, threeBettor));
+      if (!base) continue;
+
+      const root = base.tree.nodes[base.tree.root]!;
+      if (root.kind !== 'action') continue;
+      const raiseIndex = root.actions.findIndex((a) => a.kind === 'raise' || a.kind === 'allin');
+      if (raiseIndex < 0) continue;
+
+      const threeBetTo = root.actions[raiseIndex]!.to;
+
+      // 3벳한 사람이 들고 오는 레인지 = 그 액션의 빈도.
+      const threeBetRange = new Float32Array(NUM_HANDS);
+      let mass = 0;
+      for (let h = 0; h < NUM_HANDS; h++) {
+        threeBetRange[h] = base.result.strategy[root.offset + raiseIndex * NUM_HANDS + h]!;
+        mass += threeBetRange[h]! * combosOfHand(h).length;
+      }
+      // 3벳을 아예 안 하는 조합이면 스팟 자체가 성립하지 않는다.
+      if (mass < 1) continue;
+
+      const definition = makeSqueezeDefinition(opener, threeBettor, squeezer, threeBetTo, config);
+      const tree = buildSpotTree(definition, config);
+
+      const result = solveSpot(tree, {
+        iterations: iterationsPerSpot,
+        // 스퀴저는 아직 아무것도 안 했으니 전 레인지에서 출발한다.
+        ranges: [new Float32Array(NUM_HANDS).fill(1), threeBetRange],
+        equityTable,
+        realization,
+        shouldStop: options.shouldStop,
+        villainWidths: [mass / 1326, DEFAULT_CONTINUATION],
+      });
+
+      const key = squeezeKey(opener, threeBettor, squeezer);
+      out.set(key, { key, opener, threeBettor, squeezer, tree, result, threeBetRange });
+      done++;
+      options.onProgress?.(done, totalWork, `스퀴즈 ${opener}^${threeBettor}>${squeezer}`);
+    }
+    return out;
+  }
 }
 
 // ---------------------------------------------------------------------------

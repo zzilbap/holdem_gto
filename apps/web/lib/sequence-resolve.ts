@@ -4,6 +4,7 @@ import {
   isInPosition,
   outcomeOf,
   spotKey,
+  squeezeKey,
   type PreflopConfig,
   type Position,
   type SequenceAction,
@@ -66,12 +67,16 @@ export function resolveSequence(data: PreflopData, state: SequenceState): Sequen
    * 화면에는 그럴듯한 매트릭스가 뜨지만 완전히 다른 상황의 답이다.
    */
   if (!outcome.players.includes(opener)) {
+    // 오픈한 사람이 접었다면 스퀴즈일 수 있다. 따로 풀어둔 게 있는지 본다.
+    const squeeze = resolveSqueeze(data, state, live, outcome.players);
+    if (squeeze) return squeeze;
+
     return {
       kind: 'unsupported',
       reason: '오픈한 사람이 접고 다른 둘이 남은 상황',
       detail:
         `${opener}가 열었지만 결국 ${outcome.players.join('와 ')}가 플롭을 봅니다. ` +
-        '이런 팟(스퀴즈 등)은 레인지를 따로 계산해야 하는데 아직 하지 않았습니다.',
+        '이 조합은 아직 계산해 두지 않았습니다.',
     };
   }
 
@@ -117,6 +122,84 @@ export function resolveSequence(data: PreflopData, state: SequenceState): Sequen
   }
 
   return { kind: 'ready', setup: buildSetupFromPath(data, spot, opener, caller, path, live) };
+}
+
+/**
+ * 스퀴즈 상황을 풀어둔 데이터와 맞춘다.
+ *
+ * "CO 오픈 → BTN 3벳 → BB 콜 → CO 폴드" 형태다. 오픈한 사람은 3벳을 맞고 접었고,
+ * 3벳한 사람과 그 뒤에서 받은 사람이 플롭을 본다.
+ *
+ * 우리 스퀴즈 스팟은 오픈한 사람이 접는다고 **가정하고** 푼 것이다. 그 사람이
+ * 4벳으로 되받는 경우는 세지 않았으므로, 실제로 그가 접은 시퀀스에만 쓸 수 있다.
+ */
+function resolveSqueeze(
+  data: PreflopData,
+  state: SequenceState,
+  live: SequenceAction[],
+  survivors: Position[],
+): SequenceResolution | null {
+  const raises = live.filter((action) => action.kind === 'raise');
+  if (raises.length < 2) return null;
+
+  const opener = raises[0]!.position;
+  const threeBettor = raises[1]!.position;
+  if (!survivors.includes(threeBettor)) return null;
+
+  const squeezer = survivors.find((position) => position !== threeBettor);
+  if (!squeezer) return null;
+
+  const squeeze = data.squeezes.get(squeezeKey(opener, threeBettor, squeezer));
+  if (!squeeze) return null;
+
+  // 금액이 어긋나면 조용히 쓰지 않는다.
+  const expectedOpen = data.config.openSize[opener];
+  if (Math.abs(raises[0]!.to - expectedOpen) > 0.01) return null;
+
+  const root = squeeze.tree.nodes[squeeze.tree.root]!;
+  if (root.kind !== 'action') return null;
+  if (Math.abs(squeeze.tree.definition.invested[1] - raises[1]!.to) > 0.51) return null;
+
+  // 스퀴저의 액션(콜/4벳)을 트리에서 찾는다.
+  const squeezerAction = live.find(
+    (action) => action.position === squeezer && action.kind !== 'fold',
+  );
+  if (!squeezerAction) return null;
+
+  const actionIndex = root.actions.findIndex((candidate) =>
+    squeezerAction.kind === 'call'
+      ? candidate.kind === 'call'
+      : (candidate.kind === 'raise' || candidate.kind === 'allin') &&
+        Math.abs(candidate.to - squeezerAction.to) < 0.51,
+  );
+  if (actionIndex < 0) return null;
+
+  const child = squeeze.tree.nodes[root.children[actionIndex]!];
+  if (!child || child.kind !== 'terminal' || child.terminal !== 'postflop') return null;
+
+  const squeezerRange = new Float32Array(NUM_HANDS);
+  for (let h = 0; h < NUM_HANDS; h++) {
+    squeezerRange[h] = squeeze.strategy[root.offset + actionIndex * NUM_HANDS + h]!;
+  }
+
+  const squeezerIp = isInPosition(squeezer, threeBettor);
+  return {
+    kind: 'ready',
+    setup: {
+      opener: threeBettor,
+      caller: squeezer,
+      oop: squeezerIp ? threeBettor : squeezer,
+      ip: squeezerIp ? squeezer : threeBettor,
+      oopRange: handRangeToCombos(squeezerIp ? squeeze.threeBetRange : squeezerRange),
+      ipRange: handRangeToCombos(squeezerIp ? squeezerRange : squeeze.threeBetRange),
+      pot: child.pot,
+      effectiveStack: state.config.stack - child.invested[0],
+      oopWidth: widthOf(squeezerIp ? squeeze.threeBetRange : squeezerRange),
+      ipWidth: widthOf(squeezerIp ? squeezerRange : squeeze.threeBetRange),
+      label: `${POSITION_LABELS_KO[threeBettor].full}(${threeBettor}) vs ${POSITION_LABELS_KO[squeezer].full}(${squeezer})`,
+      actionText: live.map((a) => `${a.position} ${labelOf(a)}`).join(' → '),
+    },
+  };
 }
 
 /** 시퀀스의 금액이 프리솔브 설정과 어떻게 다른지. */

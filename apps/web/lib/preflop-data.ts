@@ -1,7 +1,9 @@
 import { NUM_HANDS } from '@holdem/poker-core';
 import {
   buildSpotTree,
+  isInPosition,
   makeSpotDefinition,
+  makeSqueezeDefinition,
   spotKey,
   unpackEquityTable,
   type PreflopConfig,
@@ -37,6 +39,26 @@ export interface PreflopDataFile {
       residualRegret: number;
     }
   >;
+  squeezes?: Record<
+    string,
+    {
+      opener: Position;
+      threeBettor: Position;
+      squeezer: Position;
+      strategy: string;
+      threeBetRange: string;
+    }
+  >;
+}
+
+export interface LoadedSqueeze {
+  key: string;
+  opener: Position;
+  threeBettor: Position;
+  squeezer: Position;
+  tree: SpotTree;
+  strategy: Float32Array;
+  threeBetRange: Float32Array;
 }
 
 export interface LoadedSpot {
@@ -53,6 +75,8 @@ export interface PreflopData {
   openFrequency: Record<Position, Float32Array>;
   openEdge: Record<Position, Float32Array>;
   spots: Map<string, LoadedSpot>;
+  /** 스퀴즈 스팟. 예전 데이터 파일에는 없을 수 있어 비어 있을 수 있다. */
+  squeezes: Map<string, LoadedSqueeze>;
   equityTable: Float32Array;
   meta: { boardSamples: number; rounds: number; iterationsPerSpot: number; drift: number };
 }
@@ -100,9 +124,37 @@ export function parsePreflopData(file: PreflopDataFile): PreflopData {
     });
   }
 
+  const squeezes = new Map<string, LoadedSqueeze>();
+  for (const [key, raw] of Object.entries(file.squeezes ?? {})) {
+    const definition = makeSqueezeDefinition(
+      raw.opener,
+      raw.threeBettor,
+      raw.squeezer,
+      threeBetSizeOf(config, raw.opener, raw.threeBettor),
+      config,
+    );
+    const tree = buildSpotTree(definition, config);
+    const strategy = unpackUnit(raw.strategy);
+    if (strategy.length !== tree.strategySize) {
+      throw new Error(
+        `${key}: 스퀴즈 전략 크기가 트리와 맞지 않습니다 (${strategy.length} vs ${tree.strategySize}).`,
+      );
+    }
+    squeezes.set(key, {
+      key,
+      opener: raw.opener,
+      threeBettor: raw.threeBettor,
+      squeezer: raw.squeezer,
+      tree,
+      strategy,
+      threeBetRange: unpackUnit(raw.threeBetRange),
+    });
+  }
+
   return {
     config,
     generatedAt: file.generatedAt,
+    squeezes,
     openFrequency: mapValues(file.openFrequency, unpackUnit),
     openEdge: mapValues(file.openEdge, (values) => Float32Array.from(values)),
     spots,
@@ -165,6 +217,18 @@ export function getSpot(data: PreflopData, opener: Position, responder: Position
   const spot = data.spots.get(spotKey(opener, responder));
   if (!spot) throw new Error(`스팟을 찾을 수 없습니다: ${opener} vs ${responder}`);
   return spot;
+}
+
+/**
+ * 3벳 금액. 스퀴즈 트리를 다시 지으려면 이 값이 필요하다.
+ *
+ * 설정에서 결정적으로 나오므로 파일에 담지 않는다 — 담으면 설정과 어긋날 여지가 생긴다.
+ */
+function threeBetSizeOf(config: PreflopConfig, opener: Position, threeBettor: Position): number {
+  const mult = isInPosition(threeBettor, opener)
+    ? config.threeBetMultiplierIP
+    : config.threeBetMultiplierOOP;
+  return Math.min(Math.round(config.openSize[opener] * mult * 2) / 2, config.stack);
 }
 
 function unpackUnit(encoded: string): Float32Array {

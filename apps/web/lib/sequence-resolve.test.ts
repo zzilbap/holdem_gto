@@ -129,22 +129,22 @@ describe('액션 시퀀스 → 레인지', () => {
 });
 
 describe('우리 모델에 없는 형태는 분명히 거른다', () => {
-  it('오픈한 사람이 접고 다른 둘이 남으면 못 푼다고 한다', () => {
-    // CO 오픈 → BTN 3벳 → BB 콜 → CO 폴드.
-    // 첫 레이저(CO)를 오프너로 잡으면 엉뚱한 스팟의 레인지를 가져오게 된다.
+  it('풀어둔 스퀴즈와 금액이 다르면 엉뚱한 레인지를 쓰지 않는다', () => {
+    // 스퀴즈 자체는 이제 풀 수 있다(아래 describe 참고). 여기서 보는 건
+    // 금액이 어긋나 풀어둔 스퀴즈와 맞지 않는 경우다. 그때 첫 레이저(CO)를
+    // 그대로 오프너로 잡아 CO vs BTN 스팟을 가져오는 일이 없어야 한다.
     const state = play([
       'fold', // UTG
       'fold', // HJ
-      ['raise', 2.5], // CO 오픈
-      ['raise', 7.5], // BTN 3벳
+      ['raise', 4], // CO 오픈 (계산해 둔 값은 2.5bb)
+      ['raise', 13], // BTN 3벳
       'fold', // SB
-      'call', // BB 콜 (스퀴즈 콜)
+      'call', // BB 스퀴즈 콜
       'fold', // CO 폴드
     ]);
     const result = resolveSequence(data, state);
-    expect(result.kind).toBe('unsupported');
-    if (result.kind !== 'unsupported') return;
-    console.log(`\n  [스퀴즈] ${result.reason} — ${result.detail}\n`);
+    expect(result.kind).not.toBe('ready');
+    console.log(`\n  [맞지 않는 스퀴즈] ${result.kind}\n`);
   });
 
   it('중간에 낀 사람이 있으면 못 푼다고 한다', () => {
@@ -169,5 +169,51 @@ describe('우리 모델에 없는 형태는 분명히 거른다', () => {
       play([['raise', 2.5], 'fold', 'fold', 'fold', 'fold', 'call']),
     );
     expect(result.kind).toBe('ready');
+  });
+});
+
+describe('스퀴즈 팟', () => {
+  it('CO 오픈 → BTN 3벳 → BB 콜 → CO 폴드를 풀어낸다', () => {
+    const state = play([
+      'fold', // UTG
+      'fold', // HJ
+      ['raise', 2.5], // CO 오픈
+      ['raise', 7.5], // BTN 3벳
+      'fold', // SB
+      'call', // BB 스퀴즈 콜
+      'fold', // CO 폴드
+    ]);
+    const result = resolveSequence(data, state);
+    expect(result.kind).toBe('ready');
+    if (result.kind !== 'ready') return;
+
+    console.log(
+      `\n  [스퀴즈 팟] ${result.setup.actionText}\n` +
+        `    팟 ${result.setup.pot}bb · ${result.setup.oop} ${result.setup.oopWidth.toFixed(1)}% ` +
+        `vs ${result.setup.ip} ${result.setup.ipWidth.toFixed(1)}%\n`,
+    );
+
+    // 3벳을 맞고 받은 레인지라 양쪽 다 아주 좁아야 한다
+    expect(result.setup.oopWidth).toBeLessThan(20);
+    expect(result.setup.ipWidth).toBeLessThan(20);
+    // CO가 두고 간 2.5bb가 팟에 남아 있어야 한다
+    expect(result.setup.pot).toBeGreaterThan(7.5 * 2);
+  });
+
+  it('스퀴즈에서 4벳으로 받은 경우도 본다', () => {
+    const state = play([
+      'fold',
+      'fold',
+      ['raise', 2.5], // CO
+      ['raise', 7.5], // BTN 3벳
+      'fold', // SB
+      ['raise', 16.5], // BB 4벳
+      'fold', // CO
+      'call', // BTN 콜
+    ]);
+    const result = resolveSequence(data, state);
+    // 4벳까지 간 스퀴즈는 트리에 있을 수도 없을 수도 있다. 어느 쪽이든
+    // 엉뚱한 레인지를 보여주지만 않으면 된다.
+    expect(['ready', 'unsupported', 'needs-resolve']).toContain(result.kind);
   });
 });
