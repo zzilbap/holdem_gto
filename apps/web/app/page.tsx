@@ -10,6 +10,7 @@ import { HistoryPanel } from '@/components/HistoryPanel';
 import { SeatPicker } from '@/components/SeatPicker';
 import { SettingsPanel } from '@/components/SettingsPanel';
 import { T } from '@/components/Term';
+import { TrainerPanel } from '@/components/TrainerPanel';
 import { Verdict } from '@/components/Verdict';
 import type { HistoryEntry } from '@/lib/history';
 import { useFlop } from '@/lib/use-flop';
@@ -25,7 +26,7 @@ import {
   type Scenario,
 } from '@/lib/scenario';
 
-type Tab = 'solver' | 'flop' | 'history';
+type Tab = 'solver' | 'trainer' | 'flop' | 'history';
 
 export default function Page() {
   const preflop = usePreflop();
@@ -126,6 +127,15 @@ export default function Page() {
             type="button"
             className="tab"
             role="tab"
+            aria-selected={tab === 'trainer'}
+            onClick={() => setTab('trainer')}
+          >
+            연습
+          </button>
+          <button
+            type="button"
+            className="tab"
+            role="tab"
             aria-selected={tab === 'flop'}
             onClick={() => setTab('flop')}
           >
@@ -156,6 +166,8 @@ export default function Page() {
       <div className="body">
         {error && <div className="centered error">문제가 생겼습니다: {error}</div>}
         {!data && !error && <div className="centered">전략 데이터를 불러오는 중…</div>}
+
+        {data && tab === 'trainer' && <TrainerPanel data={data} />}
 
         {data && tab === 'flop' && (
           <FlopPanel
