@@ -127,3 +127,47 @@ describe('액션 시퀀스 → 레인지', () => {
     expect(result.setup.ipWidth).toBeGreaterThan(0);
   });
 });
+
+describe('우리 모델에 없는 형태는 분명히 거른다', () => {
+  it('오픈한 사람이 접고 다른 둘이 남으면 못 푼다고 한다', () => {
+    // CO 오픈 → BTN 3벳 → BB 콜 → CO 폴드.
+    // 첫 레이저(CO)를 오프너로 잡으면 엉뚱한 스팟의 레인지를 가져오게 된다.
+    const state = play([
+      'fold', // UTG
+      'fold', // HJ
+      ['raise', 2.5], // CO 오픈
+      ['raise', 7.5], // BTN 3벳
+      'fold', // SB
+      'call', // BB 콜 (스퀴즈 콜)
+      'fold', // CO 폴드
+    ]);
+    const result = resolveSequence(data, state);
+    expect(result.kind).toBe('unsupported');
+    if (result.kind !== 'unsupported') return;
+    console.log(`\n  [스퀴즈] ${result.reason} — ${result.detail}\n`);
+  });
+
+  it('중간에 낀 사람이 있으면 못 푼다고 한다', () => {
+    // UTG 오픈 → CO 콜 → BB 3벳 → UTG 폴드 → CO 콜
+    const state = play([
+      ['raise', 2.5], // UTG
+      'fold', // HJ
+      'call', // CO 콜
+      'fold', // BTN
+      'fold', // SB
+      ['raise', 12], // BB 스퀴즈
+      'fold', // UTG
+      'call', // CO
+    ]);
+    const result = resolveSequence(data, state);
+    expect(result.kind).toBe('unsupported');
+  });
+
+  it('정상 상황은 여전히 잘 푼다', () => {
+    const result = resolveSequence(
+      data,
+      play([['raise', 2.5], 'fold', 'fold', 'fold', 'fold', 'call']),
+    );
+    expect(result.kind).toBe('ready');
+  });
+});

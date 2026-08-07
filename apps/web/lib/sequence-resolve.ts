@@ -28,7 +28,9 @@ export type SequenceResolution =
   /** 프리솔브 데이터로 바로 답할 수 있는 상황. */
   | { kind: 'ready'; setup: FlopSetup & { actionText: string } }
   /** 금액이 달라 다시 풀어야 하는 상황. 무엇이 다른지 함께 알려준다. */
-  | { kind: 'needs-resolve'; config: PreflopConfig; changes: string[] };
+  | { kind: 'needs-resolve'; config: PreflopConfig; changes: string[] }
+  /** 둘이 남긴 했지만 우리 모델에 없는 형태. 스퀴즈나 림프 팟 같은 것. */
+  | { kind: 'unsupported'; reason: string; detail: string };
 
 export function resolveSequence(data: PreflopData, state: SequenceState): SequenceResolution {
   const outcome = outcomeOf(state);
@@ -44,22 +46,57 @@ export function resolveSequence(data: PreflopData, state: SequenceState): Sequen
   const live = state.actions.filter((a) => a.kind !== 'fold');
   const opener = live[0]?.position;
   if (!opener || live[0]!.kind !== 'raise') {
-    // 아무도 레이즈하지 않고 플롭에 온 경우(림프 팟). 우리 모델에 없다.
     return {
-      kind: 'needs-resolve',
-      config: state.config,
-      changes: ['아무도 레이즈하지 않은 팟(림프 팟)은 아직 계산해 두지 않았습니다.'],
+      kind: 'unsupported',
+      reason: '아무도 레이즈하지 않은 팟(림프 팟)',
+      detail:
+        '우리 프리플롭 해답은 림프를 넣지 않고 풀었습니다. 실제 해법에서도 빈도가 매우 낮은 선택이라 트리에서 빼두었습니다.',
+    };
+  }
+
+  /**
+   * 우리 스팟 모델은 "A가 오픈하고 B가 대응, 나머지는 그냥 폴드"만 다룬다.
+   *
+   * 그래서 두 가지를 반드시 확인해야 한다:
+   *  1. 오픈한 사람이 끝까지 남았는가
+   *  2. 돈을 넣은 사람이 그 둘뿐인가
+   *
+   * 이걸 빼먹으면 "CO 오픈 → BTN 3벳 → BB 콜 → CO 폴드" 같은 스퀴즈에서
+   * 첫 레이저(CO)를 오프너로 잡아 **엉뚱한 스팟의 레인지**를 가져오게 된다.
+   * 화면에는 그럴듯한 매트릭스가 뜨지만 완전히 다른 상황의 답이다.
+   */
+  if (!outcome.players.includes(opener)) {
+    return {
+      kind: 'unsupported',
+      reason: '오픈한 사람이 접고 다른 둘이 남은 상황',
+      detail:
+        `${opener}가 열었지만 결국 ${outcome.players.join('와 ')}가 플롭을 봅니다. ` +
+        '이런 팟(스퀴즈 등)은 레인지를 따로 계산해야 하는데 아직 하지 않았습니다.',
     };
   }
 
   const [a, b] = outcome.players;
   const caller = a === opener ? b : a;
+
+  const strangers = [...new Set(live.map((action) => action.position))].filter(
+    (position) => position !== opener && position !== caller,
+  );
+  if (strangers.length > 0) {
+    return {
+      kind: 'unsupported',
+      reason: '세 명 이상이 돈을 넣은 팟',
+      detail:
+        `${strangers.join(', ')}도 돈을 넣었다가 접었습니다. ` +
+        '중간에 낀 사람이 있으면 남은 두 명의 레인지가 달라지는데, 그 계산은 아직 없습니다.',
+    };
+  }
+
   const spot = data.spots.get(spotKey(opener, caller));
   if (!spot) {
     return {
-      kind: 'needs-resolve',
-      config: state.config,
-      changes: [`${opener}와 ${caller}의 대결은 계산해 두지 않았습니다.`],
+      kind: 'unsupported',
+      reason: `${opener}와 ${caller}의 대결`,
+      detail: '이 조합은 계산해 두지 않았습니다.',
     };
   }
 
@@ -73,9 +110,9 @@ export function resolveSequence(data: PreflopData, state: SequenceState): Sequen
   const path = matchTreePath(spot, live.slice(1));
   if (!path) {
     return {
-      kind: 'needs-resolve',
-      config: configFromSequence(live, state.config),
-      changes: ['이 액션 조합은 계산해 둔 트리에 없습니다.'],
+      kind: 'unsupported',
+      reason: '계산해 둔 트리에 없는 액션 조합',
+      detail: '이 순서로 오가는 경우는 트리에 넣지 않았습니다.',
     };
   }
 

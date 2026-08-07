@@ -13,23 +13,34 @@ import type { FlopSolution } from './use-flop';
  * 특정 패를 고르면 그 콤보의 진짜 답을 따로 보여준다.
  */
 
-export function flopActionName(kind: string): string {
+/**
+ * 액션 이름.
+ *
+ * 벳·레이즈는 **반드시 금액을 붙인다.** 사이즈가 둘 이상이면 "벳 79% / 벳 21%"처럼
+ * 같은 이름이 두 줄 뜨는데, 그러면 어느 쪽이 어느 벳인지 알 방법이 없다.
+ */
+export function flopActionName(kind: string, amount?: number): string {
+  const size = amount !== undefined && amount > 0 ? ` ${fmt(amount)}bb` : '';
   switch (kind) {
     case 'check':
       return '체크';
     case 'bet':
-      return '벳';
+      return `벳${size}`;
     case 'call':
-      return '콜';
+      return `콜${size}`;
     case 'fold':
       return '폴드';
     case 'raise':
-      return '레이즈';
+      return `레이즈${size}`;
     case 'allin':
-      return '올인';
+      return `올인${size}`;
     default:
       return kind;
   }
+}
+
+function fmt(x: number): string {
+  return Number.isInteger(x) ? String(x) : x.toFixed(1);
 }
 
 const KIND_MAP: Record<string, AdviceOption['kind']> = {
@@ -66,7 +77,7 @@ export function gridOptions(
     if (counts[handIndex] === 0) return null;
     return node.actions.map((action, a) => ({
       kind: KIND_MAP[action.kind] ?? 'check',
-      name: flopActionName(action.kind),
+      name: flopActionName(action.kind, action.amount),
       detail: action.label,
       frequency: sums[a]![handIndex]! / counts[handIndex]!,
       amount: action.amount,
@@ -99,7 +110,7 @@ export function handAdvice(
 
   const options: AdviceOption[] = node.actions.map((action, a) => ({
     kind: KIND_MAP[action.kind] ?? 'check',
-    name: flopActionName(action.kind),
+    name: flopActionName(action.kind, action.amount),
     detail: action.label,
     frequency: solution.strategy[node.offset + a * n + comboSlot]!,
     amount: action.amount,

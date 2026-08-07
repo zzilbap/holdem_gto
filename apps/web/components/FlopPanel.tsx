@@ -1,6 +1,6 @@
 'use client';
 
-import { RANKS, SUITS, comboToHandIndex } from '@holdem/poker-core';
+import { RANKS, SUITS, comboToHandIndex, handIndexToString } from '@holdem/poker-core';
 import { POSITION_LABELS_KO, type PreflopConfig } from '@holdem/solver';
 import { useMemo, useState } from 'react';
 
@@ -87,6 +87,15 @@ function SequenceStatus({
             다른 사이즈에는 다른 정답이 있습니다. 대충 맞춰 보여주면 틀린 답이 됩니다.
           </p>
         </div>
+      );
+
+    case 'unsupported':
+      return (
+        <p className="status-note warn">
+          <strong>{resolution.reason}</strong>은 아직 못 풉니다.
+          <br />
+          {resolution.detail}
+        </p>
       );
 
     case 'ready':
@@ -320,6 +329,9 @@ export function FlopPanel({
                       <span>
                         <i style={{ background: 'var(--fold)' }} />폴드
                       </span>
+                      <span>
+                        <i className="swatch-empty" />이 상황에 없는 패
+                      </span>
                     </div>
                   </div>
 
@@ -357,9 +369,18 @@ export function FlopPanel({
                           )}
                         </p>
                       </div>
+                    ) : selectedHand !== null ? (
+                      <div className="verdict tone-unreachable">
+                        <span className="hand-badge">{handIndexToString(selectedHand)}</span>
+                        <h3>이 상황에 없는 패입니다</h3>
+                        <p className="subline">
+                          여기까지 온 두 사람의 레인지에 이 패가 들어 있지 않습니다.
+                          프리플롭에서 이미 접었거나, 보드에 그 카드가 깔려 있어서입니다.
+                        </p>
+                      </div>
                     ) : (
                       <div className="verdict">
-                        표에서 패를 하나 골라보세요. 회색 칸은 이 상황에서 나올 수 없는 패입니다.
+                        표에서 패를 하나 골라보세요. 줄무늬 칸은 이 상황에 없는 패입니다.
                       </div>
                     )}
 

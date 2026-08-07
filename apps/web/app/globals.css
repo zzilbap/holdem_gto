@@ -586,9 +586,27 @@ body {
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
 }
 
+/*
+ * 레인지에 없는 칸.
+ *
+ * 그냥 어두운 배경으로 두면 체크(회색)와 구분이 안 된다. 실제로 "A7s는 체크인데
+ * A6s는 왜 없냐"는 질문이 나왔는데, 둘 다 비슷한 회색으로 보였기 때문이다.
+ * 줄무늬를 넣어 색이 아니라 무늬로 구분되게 한다.
+ */
+.hand-cell.empty {
+  background: repeating-linear-gradient(
+    45deg,
+    var(--bg-sunken),
+    var(--bg-sunken) 3px,
+    var(--bg) 3px,
+    var(--bg) 6px
+  );
+}
+
 .hand-cell.empty .label {
   color: var(--text-faint);
   text-shadow: none;
+  opacity: 0.7;
 }
 
 .hand-cell .fill {
@@ -635,6 +653,17 @@ body {
   height: 11px;
   border-radius: 2px;
   display: inline-block;
+}
+
+.legend i.swatch-empty {
+  background: repeating-linear-gradient(
+    45deg,
+    var(--bg-sunken),
+    var(--bg-sunken) 2px,
+    var(--bg) 2px,
+    var(--bg) 4px
+  );
+  border: 1px solid var(--border-strong);
 }
 
 /* ============================================================= 결론 카드 */
