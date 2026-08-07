@@ -34,7 +34,7 @@ const STACK_ORDER: AdviceOption['kind'][] = ['allin', 'raise', 'call', 'check', 
 
 export function HandGrid({ selected, onSelect, fills, showFill = true }: HandGridProps) {
   return (
-    <div className="grid-wrap">
+    <div className="grid-viewport">
       <div className="hand-grid" role="grid" aria-label="핸드 선택">
         {Array.from({ length: NUM_HANDS }, (_, handIndex) => {
           const label = handIndexToString(handIndex);
