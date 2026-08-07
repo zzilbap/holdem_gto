@@ -1,6 +1,7 @@
 'use client';
 
 import type { PreflopConfig } from '@holdem/solver';
+import { T } from './Term';
 
 /**
  * 설정 패널.
@@ -42,9 +43,9 @@ export function SettingsPanel({
 
   return (
     <div className="settings">
-      <label className="field">
+      <div className="field">
         <span className="field-label">
-          스택 <em>{draft.stack}bb</em>
+          <T k="stack">내 칩</T>이 얼마인가요 <em>{draft.stack}<T k="bb">bb</T></em>
         </span>
         <div className="choices">
           {STACK_CHOICES.map((stack) => (
@@ -60,11 +61,14 @@ export function SettingsPanel({
             </button>
           ))}
         </div>
-      </label>
+        <p className="field-help">
+          빅블라인드의 몇 배를 들고 있는지입니다. 칩이 적을수록 프리플롭에서 과감해집니다.
+        </p>
+      </div>
 
-      <label className="field">
+      <div className="field">
         <span className="field-label">
-          오픈 크기 <em>{openSize}bb</em>
+          처음 <T k="open">레이즈</T>할 때 거는 돈 <em>{openSize}<T k="bb">bb</T></em>
         </span>
         <div className="choices">
           {OPEN_CHOICES.map((size) => (
@@ -93,7 +97,11 @@ export function SettingsPanel({
             </button>
           ))}
         </div>
-      </label>
+        <p className="field-help">
+          앞사람이 다 접었을 때 내가 처음 올리는 금액입니다. 온라인은 2~2.5bb, 오프라인
+          라이브는 3bb 이상을 흔히 씁니다. 작게 열수록 더 많은 패로 시도할 수 있습니다.
+        </p>
+      </div>
 
       {busy ? (
         <div className="solve-status">

@@ -93,17 +93,25 @@ export function scenarioId(scenario: Scenario): string {
     : `${scenario.kind}:${scenario.hero}`;
 }
 
-/** 목록에 뜨는 짧은 이름. */
+/**
+ * 목록에 뜨는 짧은 이름.
+ *
+ * 포지션을 약어로만 쓰면(“CO가 레이즈”) 초보자는 CO가 어디인지 모른다.
+ * 한글 이름을 앞에 붙여 약어를 자연스럽게 익히도록 한다.
+ */
 export function scenarioTitle(scenario: Scenario): string {
+  const villainName = (position: Position) =>
+    `${POSITION_LABELS_KO[position].full}(${position})`;
+
   switch (scenario.kind) {
     case 'open':
-      return '앞에서 모두 폴드';
+      return '앞사람 모두 폴드';
     case 'vs-open':
-      return `${scenario.villain}가 레이즈`;
+      return `${villainName(scenario.villain)}가 레이즈`;
     case 'vs-3bet':
-      return `${scenario.villain}가 재레이즈(3벳)`;
+      return `${villainName(scenario.villain)}가 재레이즈(3벳)`;
     case 'vs-4bet':
-      return `${scenario.villain}가 다시 레이즈(4벳)`;
+      return `${villainName(scenario.villain)}가 또 레이즈(4벳)`;
   }
 }
 

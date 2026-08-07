@@ -8,6 +8,7 @@ import { HandGrid } from '@/components/HandGrid';
 import { HistoryPanel } from '@/components/HistoryPanel';
 import { SeatPicker } from '@/components/SeatPicker';
 import { SettingsPanel } from '@/components/SettingsPanel';
+import { T } from '@/components/Term';
 import { Verdict } from '@/components/Verdict';
 import type { HistoryEntry } from '@/lib/history';
 import { useHistory } from '@/lib/use-history';
@@ -214,7 +215,14 @@ export default function Page() {
 
             <main className="main">
               {restoreNote && <p className="restore-note">{restoreNote}</p>}
-              <p className="situation">{describeScenario(scenario, data.config)}</p>
+              <div className="situation">
+                {describeScenario(scenario, data.config)}
+                {/* bb가 문장 안에서 처음 등장한다. 뜻을 모르면 문장 전체가 안 읽힌다. */}
+                <span className="situation-note">
+                  <T k="bb">bb</T> = 빅블라인드 1개. 블라인드가 500/1000원인 판이면 1bb는
+                  1,000원입니다.
+                </span>
+              </div>
 
               <div className="workspace">
                 <div className="grid-column">
@@ -261,24 +269,30 @@ export default function Page() {
                     <summary>표 읽는 법과 계산 정보</summary>
                     <div className="advanced-body">
                       칸 하나가 패 하나입니다. 칸 안의 색 비율이 그 패를 어떻게 나눠 치는지를
-                      뜻합니다. 왼쪽 위가 가장 강한 AA, 오른쪽 위는 무늬가 같은 패(s), 왼쪽
-                      아래는 무늬가 다른 패(o)입니다. 회색 칸은 이 상황에서 나올 일이 없는
-                      패입니다.
+                      뜻합니다. 왼쪽 위가 가장 강한 AA, 오른쪽 위는{' '}
+                      <T k="suited">무늬가 같은 패(s)</T>, 왼쪽 아래는 무늬가 다른 패(o)입니다.
+                      회색 칸은 이 상황에서 나올 일이 없는 패입니다.
                       <div className="stat-grid">
                         <div className="stat">
                           <div className="k">현재 패</div>
                           <div className="v">{handIndexToString(handIndex)}</div>
                         </div>
                         <div className="stat">
-                          <div className="k">스택</div>
+                          <div className="k">
+                            <T k="stack">스택</T>
+                          </div>
                           <div className="v">{data.config.stack}bb</div>
                         </div>
                         <div className="stat">
-                          <div className="k">오픈 크기</div>
+                          <div className="k">
+                            <T k="openSize">오픈 크기</T>
+                          </div>
                           <div className="v">{data.config.openSize.UTG}bb</div>
                         </div>
                         <div className="stat">
-                          <div className="k">수렴 지표</div>
+                          <div className="k">
+                            <T k="convergence">수렴 지표</T>
+                          </div>
                           <div className="v">{data.meta.drift.toFixed(4)}</div>
                         </div>
                       </div>
