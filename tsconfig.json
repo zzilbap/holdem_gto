@@ -1,0 +1,8 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./packages/poker-core" },
+    { "path": "./packages/solver" },
+    { "path": "./packages/solver-client" }
+  ]
+}
