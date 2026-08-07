@@ -333,3 +333,60 @@ describe('테이블 그림', () => {
     expect(table.pot).toBeCloseTo(25.5, 5); // 16.5 + 7.5 + 블라인드 1.5
   });
 });
+
+describe('버튼 순서', () => {
+  it('정답이 항상 첫 번째 버튼이 아니다', () => {
+    /**
+     * 조언 화면은 빈도 내림차순으로 정렬해 보여준다. 그걸 그대로 연습 버튼에 쓰면
+     * 첫 버튼이 늘 정답이 되어 위치만 보고 찍을 수 있다. 실제로 그랬다.
+     */
+    const bestPositions = new Map<number, number>();
+    let sampled = 0;
+
+    for (let i = 0; i < 300; i++) {
+      const question = generateQuestion(data, { positions: [], kinds: [] }, seeded(i + 1));
+      if (!question) continue;
+      const bestIndex = question.options.reduce(
+        (best, option, index) =>
+          option.frequency > question.options[best]!.frequency ? index : best,
+        0,
+      );
+      bestPositions.set(bestIndex, (bestPositions.get(bestIndex) ?? 0) + 1);
+      sampled++;
+    }
+
+    const spread = [...bestPositions.entries()]
+      .sort((a, b) => a[0] - b[0])
+      .map(([index, count]) => `${index}번 ${((count / sampled) * 100).toFixed(0)}%`)
+      .join(' · ');
+    console.log(`\n  정답 위치 분포 (${sampled}문제) — ${spread}`);
+
+    // 한 자리에 몰려 있으면 위치로 찍을 수 있다는 뜻이다.
+    expect(bestPositions.size).toBeGreaterThan(1);
+    const topShare = Math.max(...bestPositions.values()) / sampled;
+    expect(topShare).toBeLessThan(0.9);
+  });
+
+  it('버튼이 실전 순서대로 놓인다', () => {
+    const order = ['fold', 'check', 'call', 'raise', 'allin'];
+    for (let i = 0; i < 60; i++) {
+      const question = generateQuestion(data, { positions: [], kinds: [] }, seeded(i + 500));
+      if (!question) continue;
+      const indices = question.options.map((option) => order.indexOf(option.kind));
+      for (let k = 1; k < indices.length; k++) {
+        expect(indices[k]!, `${question.options.map((o) => o.kind).join(',')}`).toBeGreaterThan(
+          indices[k - 1]!,
+        );
+      }
+    }
+  });
+
+  it('폴드가 있으면 언제나 맨 앞이다', () => {
+    for (let i = 0; i < 60; i++) {
+      const question = generateQuestion(data, { positions: [], kinds: [] }, seeded(i + 900));
+      if (!question) continue;
+      const foldIndex = question.options.findIndex((option) => option.kind === 'fold');
+      if (foldIndex >= 0) expect(foldIndex).toBe(0);
+    }
+  });
+});

@@ -60,6 +60,27 @@ const BEST_MARGIN = 0.05;
 /** 이 빈도 이상이면 "섞어 치는 쪽"으로 인정한다. */
 const MIXED_THRESHOLD = 0.1;
 
+/**
+ * 버튼 순서는 실전 UI와 같아야 한다 — 폴드, 체크·콜, 레이즈, 올인.
+ *
+ * 조언 화면은 빈도가 높은 순으로 정렬해서 보여주는데, 그걸 그대로 연습 버튼에 쓰면
+ * **첫 번째 버튼이 항상 정답이 된다.** 그러면 연습이 아니라 왼쪽 위 누르기가 된다.
+ * 실제 포커 클라이언트와 같은 순서로 고정해야 위치로 답을 못 찍는다.
+ */
+const PLAY_ORDER: Record<string, number> = {
+  fold: 0,
+  check: 1,
+  call: 2,
+  raise: 3,
+  allin: 4,
+};
+
+function inPlayOrder(options: readonly AdviceOption[]): AdviceOption[] {
+  return [...options].sort(
+    (a, b) => (PLAY_ORDER[a.kind] ?? 9) - (PLAY_ORDER[b.kind] ?? 9),
+  );
+}
+
 export function generateQuestion(
   data: PreflopData,
   filter: TrainerFilter,
@@ -85,7 +106,7 @@ export function generateQuestion(
       scenario,
       handIndex,
       cards: comboCards(combo),
-      options: advice.options,
+      options: inPlayOrder(advice.options),
     };
   }
   return null;
