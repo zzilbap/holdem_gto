@@ -1,7 +1,7 @@
-import { NUM_HANDS } from '@holdem/poker-core';
+import { NUM_HANDS, combosOfHand } from '@holdem/poker-core';
 import { isInPosition } from './config';
 import { collisionMatrix } from './equity-table';
-import type { RealizationModel } from './realization';
+import { rangeWidthOf, type RealizationModel } from './realization';
 import type { SpotTerminalNode, SpotTree } from './spot';
 
 /**
@@ -24,6 +24,15 @@ export interface SolveOptions {
   onProgress?: (iteration: number, total: number) => void;
   /** true를 반환하면 즉시 멈춘다. 사용자가 설정을 바꿔 재계산을 시작할 때. */
   shouldStop?: () => boolean;
+  /**
+   * 각 플레이어가 **실제로 상대하게 될 레인지의 폭**(0~1).
+   *
+   * 실현율 보정에 쓴다. 시작 레인지를 그대로 쓰면 안 되는 경우가 있다:
+   * 오프너 입장에서 상대는 "전 레인지"가 아니라 "폴드하지 않고 따라온 30~40%"다.
+   * 100%로 잡으면 오프너가 과도하게 유리해져 RFI가 폭발한다(실측: BTN 70%).
+   * 생략하면 시작 레인지에서 계산한다.
+   */
+  villainWidths?: [number, number];
 }
 
 export interface SolveResult {
@@ -61,10 +70,7 @@ export function solveSpot(tree: SpotTree, options: SolveOptions): SolveResult {
   const strategySum = new Float32Array(tree.strategySize);
 
   const spr = computeSpr(tree);
-  const realizationByPlayer: [Float32Array, Float32Array] = [
-    realization.factors(isInPosition(tree.positions[0], tree.positions[1]), spr),
-    realization.factors(isInPosition(tree.positions[1], tree.positions[0]), spr),
-  ];
+  const realizationByPlayer = buildRealizationFactors();
 
   let completed = 0;
   for (let iter = 0; iter < iterations; iter++) {
@@ -209,6 +215,43 @@ export function solveSpot(tree: SpotTree, options: SolveOptions): SolveResult {
       out[h] = value;
     }
     return out;
+  }
+
+  /**
+   * 두 플레이어의 실현율 표를 만든다.
+   *
+   * 각자 **상대 레인지의 폭**을 보고 값이 정해지므로 서로 다른 입력을 받는다.
+   * 그런데 그대로 두면 두 값의 합이 2에서 벗어나고, 그만큼 팟에 없던 돈이
+   * 생기거나 사라진다. 마지막에 합이 2가 되도록 맞춰준다.
+   */
+  function buildRealizationFactors(): [Float32Array, Float32Array] {
+    const widths: [number, number] = options.villainWidths ?? [
+      rangeWidthOf(ranges[1]),
+      rangeWidthOf(ranges[0]),
+    ];
+
+    const raw: [Float32Array, Float32Array] = [
+      realization.factors({
+        inPosition: isInPosition(tree.positions[0], tree.positions[1]),
+        spr,
+        villainRangeWidth: widths[0],
+      }),
+      realization.factors({
+        inPosition: isInPosition(tree.positions[1], tree.positions[0]),
+        spr,
+        villainRangeWidth: widths[1],
+      }),
+    ];
+
+    // 콤보 가중 평균끼리 더해 2가 되도록 스칼라 보정. 핸드별 차이는 그대로 남는다.
+    const mean0 = weightedMean(raw[0]);
+    const mean1 = weightedMean(raw[1]);
+    const total = mean0 + mean1;
+    if (total <= 0) return raw;
+    const scale = 2 / total;
+    if (Math.abs(scale - 1) < 1e-6) return raw;
+
+    return [scaled(raw[0], scale), scaled(raw[1], scale)];
   }
 
   /** 리그렛 매칭. 음수 리그렛은 버리고, 전부 0이면 균등 분포로 시작한다. */
@@ -371,6 +414,18 @@ export function solveSpot(tree: SpotTree, options: SolveOptions): SolveResult {
 
 const DCFR_ALPHA = 1.5;
 const DCFR_GAMMA = 2;
+
+function weightedMean(values: Float32Array): number {
+  let sum = 0;
+  for (let h = 0; h < NUM_HANDS; h++) sum += values[h] * combosOfHand(h).length;
+  return sum / 1326;
+}
+
+function scaled(values: Float32Array, factor: number): Float32Array {
+  const out = new Float32Array(values.length);
+  for (let i = 0; i < values.length; i++) out[i] = values[i] * factor;
+  return out;
+}
 
 function computeSpr(tree: SpotTree): number {
   const { invested, deadMoney } = tree.definition;

@@ -86,7 +86,19 @@ export function buildSpotTree(definition: SpotDefinition, config: PreflopConfig)
 
   const initial: SpotState = {
     invested: [...definition.invested],
-    acted: [false, false],
+    /**
+     * second는 이미 행동한 사람이다.
+     *
+     * 스팟은 "누가 오픈/레이즈했고 이제 내 차례"인 상태에서 시작한다.
+     * 그 레이즈가 곧 second의 행동이므로 acted를 true로 두어야 한다.
+     * 빠뜨리면 first가 콜했을 때 라운드가 끝나지 않고 second에게 한 번 더
+     * 행동 기회가 생긴다 — 이미 오픈한 사람이 같은 라운드에서 또 올리는
+     * 유령 노드가 만들어지고, 그러면 콜의 가치가 무너져 폴드로 몰린다.
+     *
+     * raiseCount가 0인 스팟(숏스택 푸시/폴드 등)은 아직 아무도 자발적으로
+     * 행동하지 않은 상태라 둘 다 false다. 블라인드는 행동으로 치지 않는다.
+     */
+    acted: [false, definition.raiseCount > 0],
     allIn: [
       definition.invested[0] >= config.stack,
       definition.invested[1] >= config.stack,

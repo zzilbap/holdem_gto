@@ -72,6 +72,16 @@ export function solvePreflop(options: PreflopSolveOptions): PreflopSolution {
   const spots = new Map<string, SolvedSpot>();
   let lastRoundDrift = Number.POSITIVE_INFINITY;
 
+  /**
+   * 각 스팟에서 responder가 폴드하지 않고 따라오는 레인지의 폭.
+   *
+   * 오프너의 실현율을 계산할 때 필요하다. 첫 라운드엔 알 수 없으므로 흔한 값으로
+   * 시작하고, 라운드가 돌면서 실제 값으로 대체된다. 레인지가 서로 맞춰지듯
+   * 이 값도 같이 수렴한다.
+   */
+  const continuationWidth = new Map<string, number>();
+  const DEFAULT_CONTINUATION = 0.36;
+
   for (let round = 0; round < rounds; round++) {
     if (options.shouldStop?.()) break;
     const previous = snapshot(openFrequency);
@@ -87,15 +97,24 @@ export function solvePreflop(options: PreflopSolveOptions): PreflopSolution {
       const responderRange = new Float32Array(NUM_HANDS).fill(1);
       const openerRange = normalizedOpenRange(openFrequency[opener]);
 
+      const key = spotKey(opener, responder);
       const result = solveSpot(tree, {
         iterations: iterationsPerSpot,
         ranges: [responderRange, openerRange],
         equityTable,
         realization,
         shouldStop: options.shouldStop,
+        // responder가 상대할 건 오프너의 오픈 레인지,
+        // 오프너가 상대할 건 responder 중 따라온 부분이다.
+        villainWidths: [
+          rangePercentOf(openFrequency[opener]) / 100,
+          continuationWidth.get(key) ?? DEFAULT_CONTINUATION,
+        ],
       });
 
-      spots.set(spotKey(opener, responder), buildSolvedSpot(opener, responder, tree, result));
+      const solved = buildSolvedSpot(opener, responder, tree, result);
+      spots.set(key, solved);
+      continuationWidth.set(key, measureContinuation(solved));
       done++;
       options.onProgress?.(done, totalWork, `${opener} vs ${responder}`);
     }
@@ -203,6 +222,26 @@ function buildSolvedSpot(
     responderFoldProbability: foldProbability,
     openerEvIfContested: contestedEv,
   };
+}
+
+/**
+ * responder가 폴드하지 않고 따라오는 레인지가 전체의 몇 %인가.
+ *
+ * 오프너가 플롭에서 실제로 마주할 레인지의 폭이고, 오프너의 실현율 계산에 들어간다.
+ */
+function measureContinuation(spot: SolvedSpot): number {
+  const root = spot.tree.nodes[spot.tree.root]!;
+  if (root.kind !== 'action') return 0.36;
+
+  const foldIndex = root.actions.findIndex((a) => a.kind === 'fold');
+  if (foldIndex < 0) return 1;
+
+  let combos = 0;
+  for (let h = 0; h < NUM_HANDS; h++) {
+    const foldFreq = spot.result.strategy[root.offset + foldIndex * NUM_HANDS + h]!;
+    combos += (1 - foldFreq) * combosOfHand(h).length;
+  }
+  return combos / 1326;
 }
 
 // ---------------------------------------------------------------------------

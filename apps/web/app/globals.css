@@ -827,6 +827,18 @@ details.advanced > summary:hover {
   font-variant-numeric: tabular-nums;
 }
 
+/* 정확도 한계는 숨기지 않는다. 다만 결론을 가리지 않게 심화 뷰 안쪽에 둔다. */
+.accuracy-note {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-sunken);
+  border-left: 3px solid var(--border-strong);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-faint);
+}
+
 /* ================================================================= 탭 */
 
 .tabs {

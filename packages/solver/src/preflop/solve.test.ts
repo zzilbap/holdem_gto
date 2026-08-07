@@ -1,4 +1,4 @@
-import { NUM_HANDS, handStringToIndex } from '@holdem/poker-core';
+import { NUM_HANDS, combosOfHand, handStringToIndex } from '@holdem/poker-core';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { DEFAULT_6MAX_100BB } from './config';
 import { buildPreflopEquityTable } from './equity-table';
@@ -153,6 +153,46 @@ describe('대응 전략', () => {
     const btnFold = foldRate(vsBtn);
     console.log(`BB 폴드율 — vs UTG ${(utgFold * 100).toFixed(1)}% · vs BTN ${(btnFold * 100).toFixed(1)}%`);
     expect(utgFold).toBeGreaterThan(btnFold);
+  });
+
+  it('BB의 대응이 상식적인 범위 안에 있다', () => {
+    /**
+     * BB는 이미 1bb를 냈으니 1.5bb만 더 내면 4bb 팟을 본다. 필요 승률이 27%라
+     * 다른 자리보다 훨씬 넓게 받는다. 하지만 아웃오브포지션이라 무한정 받지도 않는다.
+     *
+     * 이 테스트는 두 방향의 버그를 다 잡는다:
+     *  - 너무 많이 접으면 → 스팟 트리에 유령 노드가 생겨 콜 가치가 무너진 경우
+     *  - 너무 적게 접으면 → 에퀴티 실현율이 아웃오브포지션에 너무 후한 경우
+     */
+    /**
+     * BB 자신의 전략에서 잰다.
+     *
+     * `responderFoldProbability`를 쓰면 안 된다. 그건 "**오프너가** 그 핸드일 때
+     * BB가 접을 확률"이라 인덱스가 오프너의 핸드다. BB의 레인지를 재는 값이 아니다.
+     */
+    const foldShare = (opener: 'UTG' | 'BTN') => {
+      const spot = solution.spots.get(spotKey(opener, 'BB'))!;
+      const root = spot.tree.nodes[spot.tree.root]!;
+      if (root.kind !== 'action') throw new Error('루트가 액션 노드가 아님');
+      const foldIndex = root.actions.findIndex((a) => a.kind === 'fold');
+      let folded = 0;
+      for (let h = 0; h < NUM_HANDS; h++) {
+        const freq = spot.result.strategy[root.offset + foldIndex * NUM_HANDS + h]!;
+        folded += freq * combosOfHand(h).length;
+      }
+      return (folded / 1326) * 100;
+    };
+
+    const vsUtg = foldShare('UTG');
+    const vsBtn = foldShare('BTN');
+    console.log(
+      `BB 폴드 비율(콤보 가중) — vs UTG ${vsUtg.toFixed(1)}% · vs BTN ${vsBtn.toFixed(1)}%  ` +
+        `(실제 해법 ≈ 57% / 35%)`,
+    );
+    expect(vsUtg).toBeGreaterThan(40);
+    expect(vsUtg).toBeLessThan(75);
+    expect(vsBtn).toBeGreaterThan(15);
+    expect(vsBtn).toBeLessThan(55);
   });
 
   it('BB는 AA로 절대 폴드하지 않는다', () => {
