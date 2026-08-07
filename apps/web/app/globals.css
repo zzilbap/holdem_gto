@@ -1,0 +1,563 @@
+/*
+ * 디자인 원칙: 초보자가 보는 화면이다.
+ *  - 결론은 크게, 근거는 작게
+ *  - 색은 액션마다 하나씩 고정 (폴드=파랑, 콜=초록, 레이즈=주황, 올인=빨강)
+ *    한 번 익히면 화면 어디서든 같은 뜻이다
+ *  - 여백을 넉넉히. 정보 밀도를 높이면 Wizard와 똑같아진다
+ */
+
+:root {
+  --bg: #0f1319;
+  --bg-raised: #171d26;
+  --bg-sunken: #0a0d12;
+  --border: #262f3d;
+  --border-strong: #36435a;
+
+  --text: #e8edf5;
+  --text-dim: #8f9bb0;
+  --text-faint: #5d6779;
+
+  --accent: #4a9eff;
+  --accent-dim: #2b5f99;
+
+  --fold: #4a7fb5;
+  --check: #6b7688;
+  --call: #3faa6a;
+  --raise: #e8814a;
+  --allin: #d64545;
+
+  --radius: 12px;
+  --radius-sm: 8px;
+  --shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
+
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Pretendard', 'Malgun Gothic',
+    'Apple SD Gothic Neo', system-ui, sans-serif;
+  --font-mono: 'SF Mono', 'Cascadia Code', Consolas, monospace;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f5f7fa;
+    --bg-raised: #ffffff;
+    --bg-sunken: #e8ecf2;
+    --border: #dde3ec;
+    --border-strong: #c3ccda;
+
+    --text: #16202e;
+    --text-dim: #5a6678;
+    --text-faint: #8b95a6;
+
+    --accent: #1f6feb;
+    --accent-dim: #a8c7f0;
+
+    --shadow: 0 2px 12px rgba(20, 30, 45, 0.08);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------------------------------------------------------------- 레이아웃 */
+
+.shell {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0 20px 96px;
+}
+
+.masthead {
+  padding: 32px 0 24px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 32px;
+}
+
+.masthead h1 {
+  font-size: 22px;
+  font-weight: 650;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.masthead p {
+  margin: 6px 0 0;
+  color: var(--text-dim);
+  font-size: 14px;
+}
+
+.section {
+  margin-bottom: 32px;
+}
+
+.section-label {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.section-label .step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.section-label h2 {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.section-label .hint {
+  font-size: 13px;
+  color: var(--text-faint);
+}
+
+.panel {
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px;
+}
+
+/* ------------------------------------------------------------ 자리 고르기 */
+
+.seat-row {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
+}
+
+.seat {
+  position: relative;
+  padding: 12px 8px;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--border);
+  background: var(--bg-sunken);
+  color: var(--text-dim);
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 0.12s, background 0.12s, color 0.12s;
+  font-family: inherit;
+  font-size: inherit;
+}
+
+.seat:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+.seat[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, var(--bg-raised));
+  color: var(--text);
+}
+
+.seat .code {
+  display: block;
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.02em;
+}
+
+.seat .name {
+  display: block;
+  font-size: 11px;
+  margin-top: 2px;
+  opacity: 0.8;
+}
+
+/* -------------------------------------------------------------- 상황 목록 */
+
+.scenario-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.scenario-chip {
+  padding: 9px 14px;
+  border-radius: 999px;
+  border: 1.5px solid var(--border);
+  background: var(--bg-sunken);
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 13.5px;
+  font-family: inherit;
+  transition: border-color 0.12s, background 0.12s, color 0.12s;
+}
+
+.scenario-chip:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+.scenario-chip[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, var(--bg-raised));
+  color: var(--text);
+}
+
+.situation {
+  margin-top: 14px;
+  padding: 16px 18px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--accent) 7%, var(--bg-sunken));
+  border-left: 3px solid var(--accent);
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+/* ------------------------------------------------------------ 핸드 매트릭스 */
+
+.grid-wrap {
+  overflow-x: auto;
+}
+
+.hand-grid {
+  display: grid;
+  grid-template-columns: repeat(13, minmax(30px, 1fr));
+  gap: 2px;
+  min-width: 440px;
+}
+
+.hand-cell {
+  position: relative;
+  aspect-ratio: 1;
+  border: none;
+  border-radius: 3px;
+  background: var(--bg-sunken);
+  color: var(--text-faint);
+  font-size: 10.5px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  cursor: pointer;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: outline-color 0.1s;
+  outline: 2px solid transparent;
+  outline-offset: -2px;
+}
+
+.hand-cell:hover {
+  outline-color: var(--text);
+}
+
+.hand-cell[aria-pressed='true'] {
+  outline-color: var(--text);
+  outline-width: 2.5px;
+}
+
+.hand-cell .label {
+  position: relative;
+  z-index: 2;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  color: #fff;
+  mix-blend-mode: normal;
+}
+
+.hand-cell.empty .label {
+  color: var(--text-faint);
+  text-shadow: none;
+}
+
+/* 액션 빈도를 세로로 쌓아 칠한다. 한 칸 안에서 비율이 바로 보인다. */
+.hand-cell .fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 1;
+}
+
+.fill-fold {
+  background: var(--fold);
+}
+.fill-check {
+  background: var(--check);
+}
+.fill-call {
+  background: var(--call);
+}
+.fill-raise {
+  background: var(--raise);
+}
+.fill-allin {
+  background: var(--allin);
+}
+
+/* ---------------------------------------------------------------- 결과 카드 */
+
+.verdict {
+  border-radius: var(--radius);
+  padding: 26px 24px;
+  border: 1px solid var(--border);
+  background: var(--bg-raised);
+  box-shadow: var(--shadow);
+}
+
+.verdict.tone-fold {
+  border-left: 5px solid var(--fold);
+}
+.verdict.tone-check {
+  border-left: 5px solid var(--check);
+}
+.verdict.tone-call {
+  border-left: 5px solid var(--call);
+}
+.verdict.tone-raise {
+  border-left: 5px solid var(--raise);
+}
+.verdict.tone-allin {
+  border-left: 5px solid var(--allin);
+}
+
+/* 일어나지 않는 상황. 결론 카드처럼 보이면 안 되므로 색을 뺀다. */
+.verdict.tone-unreachable {
+  border-left: 5px solid var(--border-strong);
+  background: var(--bg-sunken);
+}
+
+.verdict.tone-unreachable h3 {
+  font-size: 22px;
+  color: var(--text-dim);
+}
+
+.verdict .hand-badge {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 5px;
+  background: var(--bg-sunken);
+  border: 1px solid var(--border);
+  margin-bottom: 12px;
+}
+
+.verdict h3 {
+  margin: 0;
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.verdict .subline {
+  margin: 8px 0 0;
+  font-size: 15px;
+  color: var(--text-dim);
+}
+
+.verdict .reason {
+  margin: 16px 0 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  font-size: 14px;
+  color: var(--text-dim);
+  line-height: 1.65;
+}
+
+.bars {
+  margin-top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bar-row {
+  display: grid;
+  grid-template-columns: 92px 1fr 48px;
+  align-items: center;
+  gap: 12px;
+  font-size: 13.5px;
+}
+
+.bar-row .who {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.bar-row .track {
+  height: 9px;
+  border-radius: 999px;
+  background: var(--bg-sunken);
+  overflow: hidden;
+}
+
+.bar-row .value {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.2s;
+}
+
+.bar-row .pct {
+  text-align: right;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+}
+
+.bar-row .detail {
+  grid-column: 2 / -1;
+  font-size: 12px;
+  color: var(--text-faint);
+  margin-top: -4px;
+}
+
+/* ------------------------------------------------------------------ 심화 */
+
+details.advanced {
+  margin-top: 24px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  overflow: hidden;
+}
+
+details.advanced > summary {
+  padding: 14px 18px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-dim);
+  list-style: none;
+  user-select: none;
+}
+
+details.advanced > summary::-webkit-details-marker {
+  display: none;
+}
+
+details.advanced > summary::before {
+  content: '▸';
+  display: inline-block;
+  margin-right: 8px;
+  transition: transform 0.15s;
+}
+
+details.advanced[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+details.advanced > summary:hover {
+  color: var(--text);
+}
+
+.advanced-body {
+  padding: 0 18px 18px;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-bottom: 14px;
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+
+.legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legend i {
+  width: 11px;
+  height: 11px;
+  border-radius: 3px;
+  display: inline-block;
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.stat {
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-sunken);
+  border: 1px solid var(--border);
+}
+
+.stat .k {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.stat .v {
+  font-size: 17px;
+  font-weight: 650;
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* -------------------------------------------------------------- 상태 표시 */
+
+.loading,
+.error {
+  padding: 48px 20px;
+  text-align: center;
+  color: var(--text-dim);
+}
+
+.error {
+  color: var(--allin);
+}
+
+.footnote {
+  margin-top: 40px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+  font-size: 12.5px;
+  color: var(--text-faint);
+  line-height: 1.7;
+}
+
+.footnote code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--bg-sunken);
+}
+
+@media (max-width: 640px) {
+  .seat-row {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .verdict h3 {
+    font-size: 25px;
+  }
+  .bar-row {
+    grid-template-columns: 72px 1fr 42px;
+  }
+}

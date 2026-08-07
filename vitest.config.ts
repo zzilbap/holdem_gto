@@ -12,10 +12,11 @@ export default defineConfig({
       '@holdem/poker-core': pkg('poker-core'),
       '@holdem/solver': pkg('solver'),
       '@holdem/solver-client': pkg('solver-client'),
+      '@/': fileURLToPath(new URL('./apps/web/', import.meta.url)),
     },
   },
   test: {
-    include: ['packages/**/*.test.ts'],
+    include: ['packages/**/*.test.ts', 'apps/**/*.test.ts'],
     testTimeout: 300000,
   },
 });

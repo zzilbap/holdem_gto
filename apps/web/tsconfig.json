@@ -1,0 +1,24 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "jsx": "preserve",
+    "allowJs": true,
+    "incremental": true,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "types": ["react", "react-dom", "node"],
+    "plugins": [{ "name": "next" }],
+    // tsconfig.base.json의 baseUrl은 저장소 루트를 가리킨다. 여기서 다시 잡아줘야
+    // "@/..." 가 apps/web 기준으로 풀린다.
+    "baseUrl": ".",
+    "paths": {
+      "@holdem/poker-core": ["../../packages/poker-core/src/index.ts"],
+      "@holdem/solver": ["../../packages/solver/src/index.ts"],
+      "@holdem/solver-client": ["../../packages/solver-client/src/index.ts"],
+      "@/*": ["./*"]
+    }
+  },
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "exclude": ["node_modules", "out", ".next"]
+}
