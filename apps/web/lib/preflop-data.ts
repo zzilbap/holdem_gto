@@ -28,6 +28,8 @@ export interface PreflopDataFile {
   lastRoundDrift: number;
   equityTable: string;
   openFrequency: Record<Position, string>;
+  /** SB의 림프 빈도. 예전 파일에는 없을 수 있다. */
+  limpFrequency?: string;
   openEdge: Record<Position, number[]>;
   spots: Record<
     string,
@@ -74,6 +76,8 @@ export interface PreflopData {
   generatedAt: string;
   openFrequency: Record<Position, Float32Array>;
   openEdge: Record<Position, Float32Array>;
+  /** SB가 각 패로 림프하는 빈도. 없으면 전부 0. */
+  limpFrequency: Float32Array;
   spots: Map<string, LoadedSpot>;
   /** 스퀴즈 스팟. 예전 데이터 파일에는 없을 수 있어 비어 있을 수 있다. */
   squeezes: Map<string, LoadedSqueeze>;
@@ -156,6 +160,9 @@ export function parsePreflopData(file: PreflopDataFile): PreflopData {
     generatedAt: file.generatedAt,
     squeezes,
     openFrequency: mapValues(file.openFrequency, unpackUnit),
+    limpFrequency: file.limpFrequency
+      ? unpackUnit(file.limpFrequency)
+      : new Float32Array(NUM_HANDS),
     openEdge: mapValues(file.openEdge, (values) => Float32Array.from(values)),
     spots,
     equityTable: unpackEquityTable(file.equityTable),

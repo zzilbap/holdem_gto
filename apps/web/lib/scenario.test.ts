@@ -6,7 +6,13 @@ import { handStringToIndex } from '@holdem/poker-core';
 import { beforeAll, describe, expect, it } from 'vitest';
 
 import { parsePreflopData, type PreflopData, type PreflopDataFile } from './preflop-data';
-import { describeScenario, getAdvice, listScenariosFor, scenarioTitle } from './scenario';
+import {
+  describeScenario,
+  getAdvice,
+  listScenariosFor,
+  scenarioHint,
+  scenarioTitle,
+} from './scenario';
 
 /**
  * 화면에 실제로 뜰 값을 검증한다.
@@ -235,5 +241,43 @@ describe('상황 문장이 자리마다 맞는가', () => {
   it('3벳 이후에는 둘만 남았다고 알려준다', () => {
     const text = describeScenario({ kind: 'vs-3bet', hero: 'UTG', villain: 'BB' }, data.config);
     expect(text).toContain('나머지는 모두 접었');
+  });
+});
+
+describe('스몰블라인드 림프', () => {
+  it('SB 오픈 상황에는 림프 선택지가 있다', () => {
+    // 실제 해법에 있는 선택인데 트리에서 빼두고 있었다.
+    const advice = getAdvice(data, { kind: 'open', hero: 'SB' }, handStringToIndex('76s'));
+    if (!advice) throw new Error('조언 없음');
+    const kinds = advice.options.map((o) => o.name);
+    console.log(`\n  [SB 76s] ${advice.headline} — ${advice.subline}`);
+    console.log(`    선택지: ${kinds.join(' / ')}`);
+    expect(kinds).toContain('림프');
+  });
+
+  it('다른 자리에는 림프가 없다', () => {
+    for (const hero of ['UTG', 'HJ', 'CO', 'BTN'] as const) {
+      for (let h = 0; h < 169; h += 13) {
+        const advice = getAdvice(data, { kind: 'open', hero }, h);
+        if (!advice) continue;
+        expect(advice.options.map((o) => o.name)).not.toContain('림프');
+      }
+    }
+  });
+
+  it('SB의 세 선택 빈도 합이 1이다', () => {
+    for (let h = 0; h < 169; h++) {
+      const advice = getAdvice(data, { kind: 'open', hero: 'SB' }, h);
+      if (!advice) continue;
+      const sum = advice.options.reduce((acc, o) => acc + o.frequency, 0);
+      expect(sum, `핸드 ${h}`).toBeCloseTo(1, 2);
+    }
+  });
+
+  it('SB 안내 문구가 림프를 설명한다', () => {
+    const hint = scenarioHint({ kind: 'open', hero: 'SB' }, data.config);
+    expect(hint).toContain('림프');
+    expect(hint).not.toContain('빼고 계산');
+    console.log(`  [SB 안내] ${hint}\n`);
   });
 });

@@ -45,6 +45,13 @@ export interface SolvedSpot {
   openerEvIfContested: Float32Array;
 }
 
+export interface SolvedLimp {
+  tree: SpotTree;
+  result: SolveResult;
+  /** SB가 림프해서 들어갔을 때 각 패의 EV(bb). 폴드하면 -0.5bb다. */
+  sbEv: Float32Array;
+}
+
 export interface SolvedSqueeze {
   key: string;
   opener: Position;
@@ -70,6 +77,15 @@ export interface PreflopSolution {
    * 그걸 상대로 스퀴저의 답을 낼 수 있기 때문이다.
    */
   squeezes: Map<string, SolvedSqueeze>;
+  /**
+   * SB가 림프했을 때 BB가 어떻게 답하는가, 그리고 그때 SB의 EV.
+   *
+   * SB의 오픈 레인지를 정하려면 "레이즈 대신 림프하면 얼마인가"를 알아야 한다.
+   * 이게 없으면 SB는 레이즈 아니면 폴드밖에 못 하고, 실제 해법과 어긋난다.
+   */
+  limp: SolvedLimp | null;
+  /** SB가 각 패로 림프하는 빈도(169칸). */
+  limpFrequency: Float32Array;
   rounds: number;
   /** 마지막 라운드에서 오픈 빈도가 얼마나 움직였는지. 0에 가까우면 수렴했다. */
   lastRoundDrift: number;
@@ -127,6 +143,54 @@ export function makeSqueezeDefinition(
   };
 }
 
+/**
+ * 스몰블라인드가 림프한 상황.
+ *
+ * SB는 이미 0.5bb를 냈으므로 0.5bb만 더 내면 플롭을 볼 수 있다. 이 값이 워낙 싸서
+ * **실제 해법에도 림프가 유의미한 빈도로 존재한다.** 다른 자리(UTG~BTN)는 뒤에
+ * 사람이 여럿이라 림프가 거의 0이지만 SB는 상대가 BB 하나뿐이라 사정이 다르다.
+ *
+ * 처음에는 트리 크기 때문에 전 자리에서 림프를 뺐는데, 그건 6인 트리를 통째로
+ * 풀 때 얘기다. 2인 스팟으로 쪼갠 지금은 이 스팟 하나만 더 풀면 된다.
+ */
+export function makeLimpDefinition(config: PreflopConfig): SpotDefinition {
+  return {
+    // 림프를 받은 BB가 먼저 답한다.
+    first: 'BB',
+    second: 'SB',
+    deadMoney: 0,
+    invested: [config.bigBlind, config.bigBlind],
+    raiseCount: 0,
+    // 림프는 레이즈가 아니지만 행동이다. 이걸 빠뜨리면 SB에게 또 차례가 온다.
+    secondActed: true,
+    label: `SB가 ${fmtBb(config.bigBlind)}bb 림프, BB 차례`,
+  };
+}
+
+/**
+ * SB가 아직 아무 행동도 하지 않은 상태의 스팟.
+ *
+ * 폴드·림프·레이즈를 **CFR이 한꺼번에 푼다.** 이게 중요하다.
+ * "레이즈를 먼저 정하고 남은 패로 림프할지 정한다"는 순차 근사로는
+ * 림프 레인지에 약한 패만 남고, BB가 그걸 응징해서 림프 빈도가 0으로 무너진다.
+ * 실제 해법에서 SB가 강한 패도 섞어 림프하는 건 바로 그 응징을 막기 위해서다.
+ * 세 선택이 서로를 지탱하므로 따로 풀 수 없다.
+ */
+export function makeSbFirstDefinition(config: PreflopConfig): SpotDefinition {
+  return {
+    first: 'SB',
+    second: 'BB',
+    deadMoney: 0,
+    invested: [config.smallBlind, config.bigBlind],
+    raiseCount: 0,
+    // 블라인드는 자발적 행동이 아니다. BB는 아직 답하지 않았다.
+    secondActed: false,
+    label: '앞자리 모두 폴드, SB 차례',
+  };
+}
+
+export const LIMP_KEY = 'SB~BB';
+
 /** 스퀴즈가 성립하는 (오픈, 3벳, 결정할 사람) 조합. 셋 다 자리 순서를 지켜야 한다. */
 export function enumerateSqueezeTriples(): Array<{
   opener: Position;
@@ -174,6 +238,13 @@ export function solvePreflop(options: PreflopSolveOptions): PreflopSolution {
   const continuationWidth = new Map<string, number>();
   const DEFAULT_CONTINUATION = 0.36;
 
+  /**
+   * SB 림프. 라운드마다 다시 푼다 — BB의 대응이 SB 레인지에 의존하기 때문이다.
+   * 그 결과가 SB의 오픈 레인지를 정하는 데 다시 들어가므로 같이 수렴한다.
+   */
+  let limp: SolvedLimp | null = null;
+  const limpFrequency = new Float32Array(NUM_HANDS);
+
   for (let round = 0; round < rounds; round++) {
     if (options.shouldStop?.()) break;
     const previous = snapshot(openFrequency);
@@ -212,13 +283,71 @@ export function solvePreflop(options: PreflopSolveOptions): PreflopSolution {
     }
 
     updateOpenRanges(openFrequency, openEdge, spots, config);
+    // SB만 따로 푼다. 폴드·림프·레이즈가 서로를 지탱해서 EV 비교로는 안 나온다.
+    limp = solveSbFirst();
+    applySbStrategy(limp);
     lastRoundDrift = drift(previous, openFrequency);
   }
 
   // 3벳 레인지가 확정된 뒤에 스퀴즈를 푼다. 순서가 반대면 상대할 레인지가 없다.
   const squeezes = solveSqueezeSpots();
 
-  return { config, openFrequency, openEdge, spots, squeezes, rounds, lastRoundDrift };
+  return {
+    config,
+    openFrequency,
+    openEdge,
+    spots,
+    squeezes,
+    limp,
+    limpFrequency,
+    rounds,
+    lastRoundDrift,
+  };
+
+  /**
+   * SB 림프 스팟을 푼다.
+   *
+   * SB가 어떤 레인지로 림프하는지는 아직 모르므로(그걸 정하는 게 목적이다)
+   * 전 레인지에서 출발한다. BB의 대응이 나오면 그걸로 SB의 림프 EV를 잰다.
+   */
+  /**
+   * SB의 폴드·림프·레이즈를 한 번에 푼다.
+   *
+   * 결과를 그대로 SB의 전략으로 쓴다 — 다른 자리처럼 EV를 비교해 빈도를 정하지 않는다.
+   * CFR이 이미 세 선택의 균형을 맞춰 놓았기 때문이다.
+   */
+  function solveSbFirst(): SolvedLimp {
+    const tree = buildSpotTree(makeSbFirstDefinition(config), { ...config, allowLimp: true });
+    const sbRange = new Float32Array(NUM_HANDS).fill(1);
+    const bbRange = new Float32Array(NUM_HANDS).fill(1);
+
+    const result = solveSpot(tree, {
+      iterations: iterationsPerSpot,
+      ranges: [sbRange, bbRange],
+      equityTable,
+      realization,
+      shouldStop: options.shouldStop,
+      villainWidths: [1, 1],
+    });
+
+    return { tree, result, sbEv: result.rootEv[0] };
+  }
+
+  /** 푼 결과에서 SB의 레이즈·림프 빈도를 그대로 읽어 온다. */
+  function applySbStrategy(solved: SolvedLimp): void {
+    const root = solved.tree.nodes[solved.tree.root]!;
+    if (root.kind !== 'action') return;
+
+    const raiseIndex = root.actions.findIndex((a) => a.kind === 'raise' || a.kind === 'allin');
+    const limpIndex = root.actions.findIndex((a) => a.kind === 'call');
+
+    for (let h = 0; h < NUM_HANDS; h++) {
+      openFrequency.SB[h] =
+        raiseIndex >= 0 ? solved.result.strategy[root.offset + raiseIndex * NUM_HANDS + h]! : 0;
+      limpFrequency[h] =
+        limpIndex >= 0 ? solved.result.strategy[root.offset + limpIndex * NUM_HANDS + h]! : 0;
+    }
+  }
 
   function solveSqueezeSpots(): Map<string, SolvedSqueeze> {
     const out = new Map<string, SolvedSqueeze>();

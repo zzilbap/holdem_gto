@@ -56,7 +56,14 @@ export const DEFAULT_6MAX_100BB: PreflopConfig = {
   smallBlind: 0.5,
   bigBlind: 1,
   ante: 0,
-  openSize: { UTG: 2.5, HJ: 2.5, CO: 2.5, BTN: 2.5, SB: 3, BB: 0 },
+  /**
+   * BB 값은 오픈 사이즈가 아니라 **림프에 대한 아이솔레이션 레이즈**다.
+   * BB는 먼저 열 일이 없으므로(이미 1bb를 냈다) 이 자리를 그 용도로 쓴다.
+   *
+   * 0으로 두면 BB가 림프를 응징할 수 없고, 그러면 SB 림프가 과대평가된다
+   * (실측: 림프 68.7% / 폴드 1.2%라는 말이 안 되는 값이 나왔다).
+   */
+  openSize: { UTG: 2.5, HJ: 2.5, CO: 2.5, BTN: 2.5, SB: 3, BB: 4 },
   threeBetMultiplierIP: 3,
   threeBetMultiplierOOP: 4,
   fourBetMultiplier: 2.2,

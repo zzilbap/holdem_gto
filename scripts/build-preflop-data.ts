@@ -78,6 +78,8 @@ function main() {
     lastRoundDrift: round(solution.lastRoundDrift, 6),
     equityTable: packEquityTable(equityTable),
     openFrequency: mapPositions((p) => packUnit(solution.openFrequency[p])),
+    // SB만 림프가 있다. 다른 자리는 트리에서 뺐다.
+    limpFrequency: packUnit(solution.limpFrequency),
     openEdge: mapPositions((p) => Array.from(solution.openEdge[p], (v) => round(v, 4))),
     spots: Object.fromEntries(
       enumerateSpotPairs().map(({ opener, responder }) => {

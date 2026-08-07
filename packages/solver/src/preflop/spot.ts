@@ -20,6 +20,14 @@ export interface SpotDefinition {
   invested: [number, number];
   /** 지금까지 나온 레이즈 횟수. 오픈=1, 3벳=2, 4벳=3. 다음 사이즈를 이걸로 정한다. */
   raiseCount: number;
+  /**
+   * second가 이미 행동을 마쳤는가.
+   *
+   * 보통은 raiseCount로 판단할 수 있다(레이즈했다면 행동한 것). 그런데
+   * **림프는 레이즈가 아니면서 행동이다.** SB가 1bb만 내고 넘긴 스팟은
+   * raiseCount가 0인데도 SB는 이미 자기 차례를 썼다. 이 경우에만 명시한다.
+   */
+  secondActed?: boolean;
   /** 사람이 읽을 상황 설명. UI가 그대로 쓴다. */
   label: string;
 }
@@ -98,7 +106,7 @@ export function buildSpotTree(definition: SpotDefinition, config: PreflopConfig)
      * raiseCount가 0인 스팟(숏스택 푸시/폴드 등)은 아직 아무도 자발적으로
      * 행동하지 않은 상태라 둘 다 false다. 블라인드는 행동으로 치지 않는다.
      */
-    acted: [false, definition.raiseCount > 0],
+    acted: [false, definition.secondActed ?? definition.raiseCount > 0],
     allIn: [
       definition.invested[0] >= config.stack,
       definition.invested[1] >= config.stack,

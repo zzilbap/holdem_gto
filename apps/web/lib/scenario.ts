@@ -197,10 +197,9 @@ export function scenarioHint(scenario: Scenario, config: PreflopConfig): string 
 
   if (scenario.hero === 'SB') {
     return (
-      '여기서 "콜"이 없는 건 맞출 금액이 없기 때문입니다. ' +
-      `${config.bigBlind}bb만 내고 들어가는 걸 림프라고 하는데, ` +
-      '스몰블라인드에서는 실제 해법에도 림프가 있습니다. 저희는 그걸 빼고 계산했으니 ' +
-      '이 자리만큼은 실제와 조금 다를 수 있습니다.'
+      `스몰블라인드에는 "림프"라는 선택이 있습니다 — ${config.bigBlind}bb만 내고 들어가는 것이죠. ` +
+      '0.5bb만 더 내면 되고 상대가 빅블라인드 하나뿐이라 값이 싸서, ' +
+      '실제 해법에서도 자주 씁니다. 다른 자리는 뒤에 사람이 여럿이라 림프가 거의 없습니다.'
     );
   }
 
@@ -300,7 +299,17 @@ function collectOptions(
   if (scenario.kind === 'open') {
     const raiseFreq = data.openFrequency[scenario.hero][handIndex] ?? 0;
     const size = config.openSize[scenario.hero];
-    return [
+
+    /**
+     * 스몰블라인드에는 림프가 있다.
+     *
+     * SB는 0.5bb만 더 내면 플롭을 보므로 값이 워낙 싸고, 상대가 BB 하나뿐이라
+     * 실제 해법에도 유의미한 빈도로 존재한다. 다른 자리는 뒤에 사람이 여럿이라
+     * 거의 0이어서 트리에서 뺐다.
+     */
+    const limpFreq = scenario.hero === 'SB' ? (data.limpFrequency[handIndex] ?? 0) : 0;
+
+    const options: AdviceOption[] = [
       {
         kind: 'raise',
         name: '레이즈',
@@ -308,8 +317,27 @@ function collectOptions(
         frequency: raiseFreq,
         amount: size,
       },
-      { kind: 'fold', name: '폴드', detail: '이번 판은 접기', frequency: 1 - raiseFreq, amount: 0 },
     ];
+
+    if (limpFreq > 0.005) {
+      options.push({
+        kind: 'call',
+        name: '림프',
+        detail: `${fmt(config.bigBlind)}bb만 내고 들어가기`,
+        frequency: limpFreq,
+        amount: config.bigBlind,
+      });
+    }
+
+    options.push({
+      kind: 'fold',
+      name: '폴드',
+      detail: '이번 판은 접기',
+      frequency: Math.max(0, 1 - raiseFreq - limpFreq),
+      amount: 0,
+    });
+
+    return options;
   }
 
   const node = findNode(data, scenario);
