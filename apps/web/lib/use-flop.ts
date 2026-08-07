@@ -2,14 +2,20 @@
 
 import { comboIndex, parseCards, type Card } from '@holdem/poker-core';
 import {
+  DEFAULT_6MAX_100BB,
   DEFAULT_FLOP_CONFIG,
+  applyAction,
   buildFlopTree,
+  initialSequence,
+  undoLast,
   type FlopActionNode,
   type FlopTree,
+  type SequenceState,
 } from '@holdem/solver';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { enumerateFlopLines, type FlopLine, type FlopSetup } from './flop-setup';
+import type { FlopSetup } from './flop-setup';
+import { resolveSequence, type SequenceResolution } from './sequence-resolve';
 import type { PreflopData } from './preflop-data';
 import type { FlopWorkerInbound, FlopWorkerOutbound } from '@/workers/flop.worker';
 
@@ -34,7 +40,7 @@ export interface FlopSolution {
   meanEv: [number, number];
   elapsedMs: number;
   board: Card[];
-  setup: FlopSetup;
+  setup: FlopSetup & { actionText: string };
 }
 
 export interface FlopProgress {
@@ -43,10 +49,11 @@ export interface FlopProgress {
 }
 
 export interface FlopState {
-  /** 플롭까지 이어지는 모든 2인 라인. 싱글레이즈뿐 아니라 3벳·4벳 팟도 들어 있다. */
-  lines: FlopLine[];
-  setup: FlopLine | null;
-  selectedLineId: string | null;
+  /** 사용자가 직접 쌓아 만든 프리플롭 액션. */
+  sequence: SequenceState;
+  /** 그 시퀀스가 어떤 상황인지 — 진행 중인지, 풀 수 있는지, 다시 풀어야 하는지. */
+  resolution: SequenceResolution | null;
+  setup: (FlopSetup & { actionText: string }) | null;
   board: Card[];
   boardText: string;
   solution: FlopSolution | null;
@@ -55,7 +62,9 @@ export interface FlopState {
   error: string | null;
   /** 지금 보고 있는 플롭 액션 경로. 각 원소는 그 노드에서 고른 액션 번호다. */
   line: number[];
-  selectLine: (id: string) => void;
+  act: (kind: 'fold' | 'check' | 'call' | 'raise', to?: number) => void;
+  undo: () => void;
+  resetSequence: () => void;
   setBoardText: (text: string) => void;
   randomBoard: () => void;
   solve: () => void;
@@ -65,7 +74,6 @@ export interface FlopState {
 }
 
 export function useFlop(data: PreflopData | null): FlopState {
-  const [selectedLineId, setSelectedLineId] = useState<string | null>(null);
   const [boardText, setBoardText] = useState('Kh8d3c');
   const [solution, setSolution] = useState<FlopSolution | null>(null);
   const [busy, setBusy] = useState(false);
@@ -83,13 +91,33 @@ export function useFlop(data: PreflopData | null): FlopState {
     };
   }, []);
 
-  // 라인 목록은 프리플롭 해답에서 한 번만 뽑는다. 45개쯤 되고 계산이 가볍지 않다.
-  const lines = useMemo(() => (data ? enumerateFlopLines(data) : []), [data]);
+  const [sequence, setSequence] = useState<SequenceState>(() =>
+    initialSequence(data?.config ?? DEFAULT_6MAX_100BB),
+  );
 
-  const setup = useMemo(() => {
-    if (lines.length === 0) return null;
-    return lines.find((line) => line.id === selectedLineId) ?? lines[0]!;
-  }, [lines, selectedLineId]);
+  // 설정이 바뀌면(스택·사이즈 재계산) 쌓아둔 액션도 그 설정 기준으로 다시 시작한다.
+  useEffect(() => {
+    if (data) setSequence(initialSequence(data.config));
+  }, [data]);
+
+  const resolution = useMemo(
+    () => (data ? resolveSequence(data, sequence) : null),
+    [data, sequence],
+  );
+
+  const setup = resolution?.kind === 'ready' ? resolution.setup : null;
+
+  const act = useCallback(
+    (kind: 'fold' | 'check' | 'call' | 'raise', to?: number) => {
+      setSequence((current) => (current.toAct === null ? current : applyAction(current, kind, to)));
+    },
+    [],
+  );
+
+  const undo = useCallback(() => setSequence(undoLast), []);
+  const resetSequence = useCallback(() => {
+    if (data) setSequence(initialSequence(data.config));
+  }, [data]);
 
   const board = useMemo(() => {
     try {
@@ -104,7 +132,7 @@ export function useFlop(data: PreflopData | null): FlopState {
   useEffect(() => {
     setSolution(null);
     setLine([]);
-  }, [boardText, selectedLineId]);
+  }, [boardText, sequence]);
 
   const solve = useCallback(() => {
     if (!setup || board.length !== 3 || busy) return;
@@ -202,9 +230,9 @@ export function useFlop(data: PreflopData | null): FlopState {
   }, []);
 
   return {
-    lines,
+    sequence,
+    resolution,
     setup,
-    selectedLineId: setup?.id ?? null,
     board,
     boardText,
     solution,
@@ -212,7 +240,9 @@ export function useFlop(data: PreflopData | null): FlopState {
     progress,
     error,
     line,
-    selectLine: setSelectedLineId,
+    act,
+    undo,
+    resetSequence,
     setBoardText,
     randomBoard,
     solve,

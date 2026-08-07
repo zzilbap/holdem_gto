@@ -156,7 +156,18 @@ export default function Page() {
         {error && <div className="centered error">문제가 생겼습니다: {error}</div>}
         {!data && !error && <div className="centered">전략 데이터를 불러오는 중…</div>}
 
-        {data && tab === 'flop' && <FlopPanel flop={flop} />}
+        {data && tab === 'flop' && (
+          <FlopPanel
+            flop={flop}
+            onRequestResolve={(config) => {
+              // 플롭 탭에서 넣은 금액으로 프리플롭부터 다시 푼다.
+              // 계산은 솔버 탭의 워커가 하므로 그쪽으로 넘기고 화면도 옮긴다.
+              preflop.setDraft(config);
+              preflop.apply();
+              setTab('solver');
+            }}
+          />
+        )}
 
         {data && scenario && tab === 'history' && (
           <div className="history-page">

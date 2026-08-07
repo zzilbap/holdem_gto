@@ -1,12 +1,12 @@
 'use client';
 
 import { RANKS, SUITS, comboToHandIndex } from '@holdem/poker-core';
-import { POSITION_LABELS_KO, type Position } from '@holdem/solver';
+import { POSITION_LABELS_KO, type PreflopConfig } from '@holdem/solver';
 import { useMemo, useState } from 'react';
 
 import { HandGrid } from '@/components/HandGrid';
+import { ActionBuilder } from '@/components/ActionBuilder';
 import { describeLine, gridOptions, handAdvice } from '@/lib/flop-advice';
-import { potTypeLabel, type FlopLine, type PotType } from '@/lib/flop-setup';
 import { walkLine, type FlopState } from '@/lib/use-flop';
 
 /**
@@ -19,15 +19,95 @@ import { walkLine, type FlopState } from '@/lib/use-flop';
 
 const SUIT_LABEL: Record<string, string> = { c: '♣', d: '♦', h: '♥', s: '♠' };
 
-/** 팟 종류별로 묶어 드롭다운에 optgroup으로 넣는다. 45개를 평평하게 두면 못 찾는다. */
-function groupLines(lines: FlopLine[]): Array<[PotType, FlopLine[]]> {
-  const order: PotType[] = ['srp', '3bet', '4bet'];
-  return order
-    .map((type) => [type, lines.filter((line) => line.potType === type)] as [PotType, FlopLine[]])
-    .filter(([, group]) => group.length > 0);
+/**
+ * 지금 쌓은 액션이 어떤 상황인지 알려준다.
+ *
+ * 넷 중 하나다 — 아직 진행 중 / 카드 없이 끝남 / 우리가 풀 수 있음 / 다시 풀어야 함.
+ * 특히 마지막이 중요하다. 사용자가 넣은 금액이 계산해 둔 값과 다르면 조용히
+ * 근사해서 보여주면 안 된다. 2.5bb 기준 답을 3bb 상황에 쓰는 건 그냥 틀린 답이다.
+ */
+function SequenceStatus({
+  flop,
+  onRequestResolve,
+}: {
+  flop: FlopState;
+  onRequestResolve?: (config: PreflopConfig) => void;
+}) {
+  const resolution = flop.resolution;
+  if (!resolution) return null;
+
+  switch (resolution.kind) {
+    case 'ongoing':
+      return (
+        <p className="field-help">
+          {POSITION_LABELS_KO[resolution.toAct].full}({resolution.toAct})의 차례입니다.
+          위에서 액션을 눌러 계속 쌓아주세요.
+        </p>
+      );
+
+    case 'walkover':
+      return (
+        <p className="status-note">
+          {POSITION_LABELS_KO[resolution.winner].full}가 {resolution.pot}bb를 그냥 가져갑니다.
+          플롭을 보지 않으니 볼 것도 없어요.
+        </p>
+      );
+
+    case 'multiway':
+      return (
+        <p className="status-note warn">
+          {resolution.players.join(', ')} 셋 이상이 플롭을 봅니다.{' '}
+          <strong>멀티웨이는 아직 못 풉니다</strong> — 솔버가 2인 전용이고,
+          사이드팟과 3자 쇼다운을 다루려면 엔진을 새로 짜야 합니다.
+        </p>
+      );
+
+    case 'needs-resolve':
+      return (
+        <div className="status-note warn">
+          <p style={{ margin: '0 0 6px' }}>
+            넣으신 금액이 미리 계산해 둔 값과 다릅니다:
+          </p>
+          <ul className="mismatch-list">
+            {resolution.changes.map((change) => (
+              <li key={change}>{change}</li>
+            ))}
+          </ul>
+          {onRequestResolve && (
+            <button
+              type="button"
+              className="primary-button"
+              style={{ marginTop: 8 }}
+              onClick={() => onRequestResolve(resolution.config)}
+            >
+              이 금액으로 프리플롭부터 다시 계산
+            </button>
+          )}
+          <p style={{ margin: '6px 0 0', fontSize: 11.5 }}>
+            다른 사이즈에는 다른 정답이 있습니다. 대충 맞춰 보여주면 틀린 답이 됩니다.
+          </p>
+        </div>
+      );
+
+    case 'ready':
+      return (
+        <p className="field-help">
+          팟 {resolution.setup.pot}bb · 남은 칩 {resolution.setup.effectiveStack}bb ·{' '}
+          {POSITION_LABELS_KO[resolution.setup.oop].full}가 먼저 행동 ·{' '}
+          레인지 {resolution.setup.oopWidth.toFixed(0)}% vs{' '}
+          {resolution.setup.ipWidth.toFixed(0)}%
+        </p>
+      );
+  }
 }
 
-export function FlopPanel({ flop }: { flop: FlopState }) {
+export function FlopPanel({
+  flop,
+  onRequestResolve,
+}: {
+  flop: FlopState;
+  onRequestResolve?: (config: PreflopConfig) => void;
+}) {
   const [selectedHand, setSelectedHand] = useState<number | null>(null);
 
   const current = useMemo(() => {
@@ -61,33 +141,16 @@ export function FlopPanel({ flop }: { flop: FlopState }) {
         <div className="control-group">
           <div className="control-head">
             <span className="step">1</span>
-            <h2>어떤 상황에서 플롭에 왔나요</h2>
+            <h2>프리플롭에서 무슨 일이 있었나요</h2>
           </div>
-          <select
-            className="select"
-            value={flop.selectedLineId ?? ''}
-            onChange={(event) => flop.selectLine(event.target.value)}
-          >
-            {groupLines(flop.lines).map(([type, lines]) => (
-              <optgroup key={type} label={potTypeLabel(type)}>
-                {lines.map((line) => (
-                  <option key={line.id} value={line.id}>
-                    {line.actionText}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
-          {flop.setup && (
-            <p className="field-help">
-              팟 {flop.setup.pot}bb · 남은 칩 {flop.setup.effectiveStack}bb ·{' '}
-              {POSITION_LABELS_KO[flop.setup.oop].full}가 먼저 행동
-            </p>
-          )}
-          <p className="field-help multiway-note">
-            세 명 이상이 보는 팟은 아직 없습니다. 솔버가 2인 전용이라 그렇고,
-            사이드팟과 3자 쇼다운을 다루려면 엔진을 새로 짜야 합니다.
-          </p>
+          <ActionBuilder
+            state={flop.sequence}
+            onAction={flop.act}
+            onUndo={flop.undo}
+            onReset={flop.resetSequence}
+            disabled={flop.busy}
+          />
+          <SequenceStatus flop={flop} onRequestResolve={onRequestResolve} />
         </div>
 
         <div className="control-group">
@@ -176,11 +239,8 @@ export function FlopPanel({ flop }: { flop: FlopState }) {
         {flop.solution && current && (
           <>
             <div className="situation">
-              {'actionText' in flop.solution.setup
-                ? (flop.solution.setup as FlopLine).actionText
-                : flop.solution.setup.label}
-              . 둘이서 플롭을 봤습니다. 팟 {flop.solution.setup.pot}bb, 남은 칩{' '}
-              {flop.solution.setup.effectiveStack}bb.
+              {flop.solution.setup.actionText}. 둘이서 플롭을 봤습니다. 팟{' '}
+              {flop.solution.setup.pot}bb, 남은 칩 {flop.solution.setup.effectiveStack}bb.
               <span className="situation-note">
                 {POSITION_LABELS_KO[flop.solution.setup.oop].full}가 먼저 행동합니다 ·{' '}
                 지금 보는 지점: {describeLine(flop.solution.tree, flop.line)}
