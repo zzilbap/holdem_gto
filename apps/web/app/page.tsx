@@ -4,6 +4,7 @@ import { handIndexToString, handStringToIndex } from '@holdem/poker-core';
 import type { Position } from '@holdem/solver';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
+import { FlopPanel } from '@/components/FlopPanel';
 import { HandGrid } from '@/components/HandGrid';
 import { HistoryPanel } from '@/components/HistoryPanel';
 import { SeatPicker } from '@/components/SeatPicker';
@@ -11,6 +12,7 @@ import { SettingsPanel } from '@/components/SettingsPanel';
 import { T } from '@/components/Term';
 import { Verdict } from '@/components/Verdict';
 import type { HistoryEntry } from '@/lib/history';
+import { useFlop } from '@/lib/use-flop';
 import { useHistory } from '@/lib/use-history';
 import { usePreflop } from '@/lib/use-preflop';
 import {
@@ -22,7 +24,7 @@ import {
   type Scenario,
 } from '@/lib/scenario';
 
-type Tab = 'solver' | 'history';
+type Tab = 'solver' | 'flop' | 'history';
 
 export default function Page() {
   const preflop = usePreflop();
@@ -64,6 +66,8 @@ export default function Page() {
     { hero, scenario, handIndex, config: data?.config ?? null, advice },
     tab === 'solver' && !preflop.busy,
   );
+
+  const flop = useFlop(data);
 
   const fills = useMemo(() => {
     if (!data || !scenario) return undefined;
@@ -121,6 +125,15 @@ export default function Page() {
             type="button"
             className="tab"
             role="tab"
+            aria-selected={tab === 'flop'}
+            onClick={() => setTab('flop')}
+          >
+            플롭
+          </button>
+          <button
+            type="button"
+            className="tab"
+            role="tab"
             aria-selected={tab === 'history'}
             onClick={() => setTab('history')}
           >
@@ -142,6 +155,8 @@ export default function Page() {
       <div className="body">
         {error && <div className="centered error">문제가 생겼습니다: {error}</div>}
         {!data && !error && <div className="centered">전략 데이터를 불러오는 중…</div>}
+
+        {data && tab === 'flop' && <FlopPanel flop={flop} />}
 
         {data && scenario && tab === 'history' && (
           <div className="history-page">
