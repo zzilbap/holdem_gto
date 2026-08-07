@@ -17,7 +17,8 @@ import { fileURLToPath } from 'node:url';
 import { NUM_HANDS } from '@holdem/poker-core';
 import {
   DEFAULT_6MAX_100BB,
-  HeuristicRealization,
+  MEASURED_REALIZATION,
+  MeasuredRealization,
   POSITIONS_6MAX,
   buildPreflopEquityTable,
   enumerateSpotPairs,
@@ -55,7 +56,8 @@ function main() {
   const solution = solvePreflop({
     config: DEFAULT_6MAX_100BB,
     equityTable,
-    realization: new HeuristicRealization(),
+    // 추측 공식이 아니라 플롭을 실제로 풀어 잰 값을 쓴다 (scripts/measure-realization.ts).
+    realization: new MeasuredRealization(MEASURED_REALIZATION),
     rounds: ROUNDS,
     iterationsPerSpot: ITERATIONS_PER_SPOT,
     onProgress: (done, total, label) => {

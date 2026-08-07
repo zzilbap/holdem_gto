@@ -1,6 +1,11 @@
 /// <reference lib="webworker" />
 
-import { HeuristicRealization, solvePreflop, type PreflopConfig } from '@holdem/solver';
+import {
+  MEASURED_REALIZATION,
+  MeasuredRealization,
+  solvePreflop,
+  type PreflopConfig,
+} from '@holdem/solver';
 
 /**
  * 프리플롭 전체 솔브를 돌리는 워커.
@@ -65,7 +70,7 @@ scope.onmessage = (event: MessageEvent<WorkerInbound>) => {
     const solution = solvePreflop({
       config: message.config,
       equityTable: message.equityTable,
-      realization: new HeuristicRealization(),
+      realization: new MeasuredRealization(MEASURED_REALIZATION),
       rounds: message.rounds,
       iterationsPerSpot: message.iterationsPerSpot,
       shouldStop: () => cancelled.has(id),

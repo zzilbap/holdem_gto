@@ -169,18 +169,27 @@ describe('결론이 상식과 맞는가', () => {
   });
 
   it('섞어 치는 패는 그렇다고 말해준다', () => {
-    // 경계에 있는 패를 찾아 문구가 제대로 나오는지 본다
+    /**
+     * RFI는 거의 순수 전략으로 나온다 — 오픈이 이득이면 열고 아니면 접는다.
+     * 섞는 패는 CFR이 직접 푸는 대응 상황(오픈에 맞서는 자리)에서 주로 나온다.
+     * 그래서 한 상황만 보지 않고 여러 자리를 훑는다.
+     */
     let found = 0;
-    for (let h = 0; h < 169; h++) {
-      const advice = getAdvice(data, { kind: 'open', hero: 'CO' }, h);
-      if (advice?.isMixed) {
-        expect(advice.subline).toContain('섞어');
-        expect(advice.headline).toContain('주로');
-        if (found === 0) console.log(`[혼합 예시] ${advice.headline} — ${advice.subline}`);
-        found++;
+    let example = '';
+    for (const hero of ['UTG', 'CO', 'BTN', 'SB', 'BB'] as const) {
+      for (const scenario of listScenariosFor(hero)) {
+        for (let h = 0; h < 169; h++) {
+          const advice = getAdvice(data, scenario, h);
+          if (!advice?.isMixed) continue;
+          expect(advice.subline).toContain('섞어');
+          expect(advice.headline).toContain('주로');
+          if (!example) example = `${advice.headline} — ${advice.subline}`;
+          found++;
+        }
       }
     }
-    console.log(`CO 오픈에서 섞어 치는 패 ${found}개`);
+    console.log(`[혼합 예시] ${example}`);
+    console.log(`섞어 치는 패가 나오는 칸 ${found}개`);
     expect(found).toBeGreaterThan(0);
   });
 });
