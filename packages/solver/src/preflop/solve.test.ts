@@ -83,13 +83,15 @@ describe('RFI 차트', () => {
     expect(btn).toBeLessThan(65);
   });
 
-  it('프리미엄 핸드는 어느 자리에서도 오픈한다', () => {
+  it('프리미엄 핸드는 어느 자리에서도 판에 들어간다', () => {
     for (const position of ['UTG', 'HJ', 'CO', 'BTN', 'SB'] as const) {
       for (const hand of ['AA', 'KK', 'QQ', 'AKs', 'AKo']) {
-        expect(
-          solution.openFrequency[position][handStringToIndex(hand)],
-          `${position} ${hand}`,
-        ).toBeGreaterThan(0.9);
+        const h = handStringToIndex(hand);
+        // SB에는 림프가 있으므로 레이즈 빈도만 보면 안 된다.
+        const enters =
+          solution.openFrequency[position][h]! +
+          (position === 'SB' ? solution.limpFrequency[h]! : 0);
+        expect(enters, `${position} ${hand}`).toBeGreaterThan(0.9);
       }
     }
   });
