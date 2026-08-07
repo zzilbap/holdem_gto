@@ -34,6 +34,23 @@ export interface SolveResult {
   iterations: number;
   /** 남은 평균 리그렛(bb). 0에 가까울수록 균형에 가깝다. */
   residualRegret: number;
+  /**
+   * 루트에서 갈라지는 액션별로 쪼갠 결과.
+   *
+   * RFI 레인지를 구할 때 필요하다. "UTG가 오픈했는데 BB가 폴드하지 않았다면 그때
+   * UTG의 EV는 얼마인가"를 알아야 여러 명이 순차로 반응하는 상황을 조립할 수 있다.
+   * 루트에서 행동하지 않는 쪽(= 이미 오픈한 쪽)의 관점이다.
+   */
+  rootBreakdown: RootActionBreakdown | null;
+}
+
+export interface RootActionBreakdown {
+  /** 루트에서 행동하는 플레이어. */
+  actor: 0 | 1;
+  /** actor의 액션 a를 고를 확률 — 상대가 핸드 h를 들고 있다는 조건 하에서. */
+  probability: Float32Array[];
+  /** 액션 a가 나왔을 때 상대(=actor가 아닌 쪽)의 조건부 EV(bb). */
+  opponentEv: Float32Array[];
 }
 
 export function solveSpot(tree: SpotTree, options: SolveOptions): SolveResult {
@@ -80,6 +97,7 @@ export function solveSpot(tree: SpotTree, options: SolveOptions): SolveResult {
     rootEv: [evaluateRootEv(0, strategy), evaluateRootEv(1, strategy)],
     iterations: completed,
     residualRegret: meanPositiveRegret(),
+    rootBreakdown: computeRootBreakdown(strategy),
   };
 
   // -------------------------------------------------------------------------
@@ -242,42 +260,94 @@ export function solveSpot(tree: SpotTree, options: SolveOptions): SolveResult {
     return out;
   }
 
+  /** 고정된 전략으로 서브트리를 훑어 `me`의 counterfactual value를 구한다. */
+  function walkWithStrategy(
+    nodeIndex: number,
+    reachMe: Float32Array,
+    reachOpp: Float32Array,
+    me: 0 | 1,
+    strategy: Float32Array,
+  ): Float32Array {
+    const node = tree.nodes[nodeIndex]!;
+    if (node.kind === 'terminal') return terminalValue(node, reachOpp, me);
+
+    const actionCount = node.actions.length;
+    const total = new Float32Array(NUM_HANDS);
+    for (let a = 0; a < actionCount; a++) {
+      const slot = node.offset + a * NUM_HANDS;
+      const next = new Float32Array(NUM_HANDS);
+      if (node.player === me) {
+        for (let h = 0; h < NUM_HANDS; h++) next[h] = reachMe[h] * strategy[slot + h];
+        const sub = walkWithStrategy(node.children[a]!, next, reachOpp, me, strategy);
+        // 내 차례에서는 자식 값을 **내 전략으로 가중 평균**한다. 그냥 더하면
+        // counterfactual value에 이미 빠져 있는 내 확률이 액션 수만큼 부풀려진다.
+        for (let h = 0; h < NUM_HANDS; h++) total[h] += strategy[slot + h] * sub[h];
+      } else {
+        for (let h = 0; h < NUM_HANDS; h++) next[h] = reachOpp[h] * strategy[slot + h];
+        const sub = walkWithStrategy(node.children[a]!, reachMe, next, me, strategy);
+        for (let h = 0; h < NUM_HANDS; h++) total[h] += sub[h];
+      }
+    }
+    return total;
+  }
+
+  /** 내가 핸드 h를 들고 있을 때 상대 레인지가 갖는 총 콤보 질량. */
+  function reachMass(hand: number, oppReach: Float32Array): number {
+    const row = hand * NUM_HANDS;
+    let mass = 0;
+    for (let o = 0; o < NUM_HANDS; o++) mass += oppReach[o] * collision[row + o];
+    return mass;
+  }
+
   /** 평균 전략으로 루트 EV를 다시 계산해 "핸드당 bb"로 환산한다. */
   function evaluateRootEv(me: 0 | 1, strategy: Float32Array): Float32Array {
-    const cfv = walk(tree.root, ranges[me], ranges[1 - me]);
+    const cfv = walkWithStrategy(tree.root, ranges[me], ranges[1 - me], me, strategy);
     const out = new Float32Array(NUM_HANDS);
     for (let h = 0; h < NUM_HANDS; h++) {
       // counterfactual value를 상대 도달 총량으로 나누면 핸드 하나당 기댓값이 된다.
-      const row = h * NUM_HANDS;
-      let mass = 0;
-      for (let o = 0; o < NUM_HANDS; o++) mass += ranges[1 - me][o] * collision[row + o];
+      const mass = reachMass(h, ranges[1 - me]);
       out[h] = mass > 1e-12 ? cfv[h] / mass : 0;
     }
     return out;
+  }
 
-    function walk(nodeIndex: number, reachMe: Float32Array, reachOpp: Float32Array): Float32Array {
-      const node = tree.nodes[nodeIndex]!;
-      if (node.kind === 'terminal') return terminalValue(node, reachOpp, me);
+  /**
+   * 루트에서 갈라지는 액션별로 "그 액션이 나올 확률"과 "그때 상대의 EV"를 뽑는다.
+   *
+   * 확률과 EV 모두 **상대 핸드에 조건부**다. 내가 AA를 들고 있으면 상대가 AA로
+   * 3벳할 일이 줄어들기 때문에, 이 조건부를 무시하면 RFI 레인지가 틀어진다.
+   */
+  function computeRootBreakdown(strategy: Float32Array): RootActionBreakdown | null {
+    const root = tree.nodes[tree.root]!;
+    if (root.kind !== 'action') return null;
 
-      const actionCount = node.actions.length;
-      const total = new Float32Array(NUM_HANDS);
-      for (let a = 0; a < actionCount; a++) {
-        const slot = node.offset + a * NUM_HANDS;
-        const next = new Float32Array(NUM_HANDS);
-        if (node.player === me) {
-          for (let h = 0; h < NUM_HANDS; h++) next[h] = reachMe[h] * strategy[slot + h];
-          const sub = walk(node.children[a]!, next, reachOpp);
-          // 내 차례에서는 자식 값을 **내 전략으로 가중 평균**한다. 그냥 더하면
-          // counterfactual value에 이미 빠져 있는 내 확률이 액션 수만큼 부풀려진다.
-          for (let h = 0; h < NUM_HANDS; h++) total[h] += strategy[slot + h] * sub[h];
-        } else {
-          for (let h = 0; h < NUM_HANDS; h++) next[h] = reachOpp[h] * strategy[slot + h];
-          const sub = walk(node.children[a]!, reachMe, next);
-          for (let h = 0; h < NUM_HANDS; h++) total[h] += sub[h];
-        }
+    const actor = root.player;
+    const other = (1 - actor) as 0 | 1;
+    const probability: Float32Array[] = [];
+    const opponentEv: Float32Array[] = [];
+
+    const totalMass = new Float32Array(NUM_HANDS);
+    for (let h = 0; h < NUM_HANDS; h++) totalMass[h] = reachMass(h, ranges[actor]);
+
+    for (let a = 0; a < root.actions.length; a++) {
+      const slot = root.offset + a * NUM_HANDS;
+      const actorReach = new Float32Array(NUM_HANDS);
+      for (let h = 0; h < NUM_HANDS; h++) actorReach[h] = ranges[actor][h] * strategy[slot + h];
+
+      const cfv = walkWithStrategy(root.children[a]!, ranges[other], actorReach, other, strategy);
+
+      const prob = new Float32Array(NUM_HANDS);
+      const ev = new Float32Array(NUM_HANDS);
+      for (let h = 0; h < NUM_HANDS; h++) {
+        const massA = reachMass(h, actorReach);
+        prob[h] = totalMass[h] > 1e-12 ? massA / totalMass[h] : 0;
+        ev[h] = massA > 1e-12 ? cfv[h] / massA : 0;
       }
-      return total;
+      probability.push(prob);
+      opponentEv.push(ev);
     }
+
+    return { actor, probability, opponentEv };
   }
 
   /** 수렴 정도를 보는 값. 정확한 착취가능성이 필요하면 best-response 패스를 따로 붙인다. */
