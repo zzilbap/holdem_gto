@@ -11,6 +11,7 @@ import {
 import { beforeAll, describe, expect, it } from 'vitest';
 
 import { parsePreflopData, type PreflopData, type PreflopDataFile } from './preflop-data';
+import { describeTable } from './table-view';
 import { getAdvice } from './scenario';
 import {
   EMPTY_STATS,
@@ -250,5 +251,85 @@ describe('한국어 조사', () => {
     console.log(`\n  문장 ${messages.length}개 검사 · 어색한 조사 ${broken.length}개`);
     if (broken.length > 0) console.log(`  예: ${broken[0]}`);
     expect(broken).toHaveLength(0);
+  });
+});
+
+describe('테이블 그림', () => {
+  it('모든 자리에 상태가 채워진다', () => {
+    // 빈칸으로 남은 자리가 있으면 "얘는 뭘 한 거지?"에서 막힌다.
+    const scenarios: TrainerQuestion['scenario'][] = [
+      { kind: 'open', hero: 'CO' },
+      { kind: 'vs-open', hero: 'BTN', villain: 'UTG' },
+      { kind: 'vs-3bet', hero: 'HJ', villain: 'BTN' },
+      { kind: 'vs-4bet', hero: 'BTN', villain: 'HJ' },
+    ];
+
+    for (const scenario of scenarios) {
+      const question: TrainerQuestion = {
+        id: 't',
+        scenario,
+        handIndex: handStringToIndex('AKo'),
+        cards: [0, 1],
+        options: [],
+      };
+      const table = describeTable(scenario, data);
+      for (const position of ['UTG', 'HJ', 'CO', 'BTN', 'SB', 'BB'] as const) {
+        expect(table.seats[position], `${scenario.kind} / ${position}`).toBeDefined();
+        expect(['folded', 'pending', 'live']).toContain(table.seats[position].status);
+      }
+    }
+  });
+
+  it('3벳·4벳 팟에서는 아직 행동 안 한 자리가 없다', () => {
+    // 3벳까지 오갔으면 뒷자리도 이미 답을 마쳤다.
+    for (const scenario of [
+      { kind: 'vs-3bet', hero: 'HJ', villain: 'BTN' },
+      { kind: 'vs-4bet', hero: 'BTN', villain: 'HJ' },
+    ] as TrainerQuestion['scenario'][]) {
+      const question: TrainerQuestion = {
+        id: 't',
+        scenario,
+        handIndex: handStringToIndex('AKo'),
+        cards: [0, 1],
+        options: [],
+      };
+      const table = describeTable(scenario, data);
+      const pending = Object.values(table.seats).filter((seat) => seat.status === 'pending');
+      expect(pending).toHaveLength(0);
+    }
+  });
+
+  it('팟이 자리에 놓인 돈의 합과 같다', () => {
+    // 팟을 따로 계산하면 어긋난다. 실제로 4벳 팟이 20.5bb로 잘못 떴었다.
+    const scenarios: TrainerQuestion['scenario'][] = [
+      { kind: 'open', hero: 'CO' },
+      { kind: 'vs-open', hero: 'BB', villain: 'BTN' },
+      { kind: 'vs-3bet', hero: 'HJ', villain: 'BTN' },
+      { kind: 'vs-4bet', hero: 'BTN', villain: 'HJ' },
+    ];
+
+    for (const scenario of scenarios) {
+      const question: TrainerQuestion = {
+        id: 't',
+        scenario,
+        handIndex: handStringToIndex('AKo'),
+        cards: [0, 1],
+        options: [],
+      };
+      const table = describeTable(scenario, data);
+      const total = Object.values(table.seats).reduce((sum, seat) => sum + (seat.invested ?? 0), 0);
+      expect(table.pot, scenario.kind).toBeCloseTo(total, 5);
+    }
+  });
+
+  it('4벳 팟의 금액이 실제와 맞는다', () => {
+    // HJ 2.5 오픈 → BTN 7.5 3벳 → HJ 16.5 4벳. 블라인드 1.5는 접힌 채로 남는다.
+    const table = describeTable({ kind: 'vs-4bet', hero: 'BTN', villain: 'HJ' }, data);
+    console.log(
+      `\n  [4벳 팟] 팟 ${table.pot}bb · HJ ${table.seats.HJ.invested}bb · BTN ${table.seats.BTN.invested}bb`,
+    );
+    expect(table.seats.HJ.invested).toBeCloseTo(16.5, 5);
+    expect(table.seats.BTN.invested).toBeCloseTo(7.5, 5);
+    expect(table.pot).toBeCloseTo(25.5, 5); // 16.5 + 7.5 + 블라인드 1.5
   });
 });

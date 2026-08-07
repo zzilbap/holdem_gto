@@ -1512,10 +1512,17 @@ details.advanced > summary:hover {
   margin-top: 1px;
 }
 
+.seat-state-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  justify-content: center;
+  margin-top: 4px;
+}
+
 .seat-tag,
 .seat-state {
   display: inline-block;
-  margin-top: 4px;
   padding: 1px 6px;
   border-radius: 999px;
   font-size: 10px;
@@ -1530,10 +1537,24 @@ details.advanced > summary:hover {
   font-weight: 600;
 }
 
+/* 마지막으로 올린 사람. 지금 답해야 할 상대라 제일 눈에 띄어야 한다. */
 .seat-state.bet {
   background: var(--raise);
   color: #fff;
   font-variant-numeric: tabular-nums;
+}
+
+/* 돈을 넣었지만 마지막 공격자는 아닌 경우 (내가 3벳해 둔 금액 등). */
+.seat-state.put {
+  background: color-mix(in srgb, var(--accent) 30%, var(--bg-sunken));
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 아직 차례가 오지 않은 자리. 접은 자리와 구분되어야 한다. */
+.table-seat.is-pending {
+  opacity: 0.72;
+  border-style: dashed;
 }
 
 .hole-cards {

@@ -1,11 +1,12 @@
 'use client';
 
-import { POSITIONS_6MAX, POSITION_LABELS_KO, type Position } from '@holdem/solver';
+import { POSITIONS_6MAX, POSITION_LABELS_KO } from '@holdem/solver';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { PokerTable } from '@/components/PokerTable';
 import type { PreflopData } from '@/lib/preflop-data';
 import { describeScenario } from '@/lib/scenario';
+import { describeTable } from '@/lib/table-view';
 import {
   ALL_SCENARIO_KINDS,
   EMPTY_STATS,
@@ -69,7 +70,7 @@ export function TrainerPanel({ data }: { data: PreflopData }) {
 
   const tableProps = useMemo(() => {
     if (!question) return null;
-    return describeTable(question, data);
+    return describeTable(question.scenario, data);
   }, [question, data]);
 
   return (
@@ -210,53 +211,6 @@ export function TrainerPanel({ data }: { data: PreflopData }) {
       </main>
     </div>
   );
-}
-
-/** 문제의 시나리오를 테이블 그림에 필요한 정보로 바꾼다. */
-function describeTable(question: TrainerQuestion, data: PreflopData) {
-  const { scenario } = question;
-  const config = data.config;
-  const heroIndex = POSITIONS_6MAX.indexOf(scenario.hero);
-  const blinds = config.smallBlind + config.bigBlind;
-
-  if (scenario.kind === 'open') {
-    return {
-      hero: scenario.hero,
-      // 앞자리는 전부 접힌 상태다.
-      folded: POSITIONS_6MAX.slice(0, heroIndex),
-      aggressor: null,
-      pot: blinds,
-    };
-  }
-
-  const villain = scenario.villain;
-  const villainIndex = POSITIONS_6MAX.indexOf(villain);
-
-  if (scenario.kind === 'vs-open') {
-    const amount = config.openSize[villain];
-    return {
-      hero: scenario.hero,
-      folded: POSITIONS_6MAX.filter(
-        (_, index) => index < heroIndex && index !== villainIndex,
-      ),
-      aggressor: { position: villain, amount },
-      pot: blinds + amount,
-    };
-  }
-
-  // vs-3bet / vs-4bet — 상대가 올린 금액을 대략 표시한다.
-  const openTo = config.openSize[scenario.kind === 'vs-3bet' ? scenario.hero : villain];
-  const threeBet = openTo * config.threeBetMultiplierIP;
-  const amount = scenario.kind === 'vs-3bet' ? threeBet : threeBet * config.fourBetMultiplier;
-  return {
-    hero: scenario.hero,
-    folded: POSITIONS_6MAX.filter(
-      (position, index) =>
-        position !== scenario.hero && position !== villain && index < Math.max(heroIndex, villainIndex),
-    ),
-    aggressor: { position: villain, amount: Math.round(amount * 2) / 2 },
-    pot: Math.round((blinds + amount + openTo) * 2) / 2,
-  };
 }
 
 function toggle<T>(list: T[], value: T): T[] {
