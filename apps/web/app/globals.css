@@ -42,8 +42,8 @@
     'Apple SD Gothic Neo', system-ui, sans-serif;
   --font-mono: 'SF Mono', 'Cascadia Code', Consolas, monospace;
 
-  --sidebar-w: 232px;
-  --verdict-w: 340px;
+  --sidebar-w: 276px;
+  --verdict-w: 404px;
 }
 
 @media (prefers-color-scheme: light) {
@@ -137,38 +137,38 @@ body {
 .sidebar {
   border-right: 1px solid var(--border);
   background: var(--bg-raised);
-  padding: 16px 14px;
+  padding: 18px 16px;
   overflow-y: auto;
   min-height: 0;
 }
 
 .control-group + .control-group {
-  margin-top: 22px;
+  margin-top: 26px;
 }
 
 .control-head {
   display: flex;
   align-items: center;
-  gap: 7px;
-  margin-bottom: 9px;
+  gap: 8px;
+  margin-bottom: 11px;
 }
 
 .control-head .step {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   background: var(--accent);
   color: #fff;
-  font-size: 11px;
+  font-size: 11.5px;
   font-weight: 700;
   flex-shrink: 0;
 }
 
 .control-head h2 {
-  font-size: 12.5px;
+  font-size: 13.5px;
   font-weight: 650;
   margin: 0;
   color: var(--text-dim);
@@ -179,11 +179,11 @@ body {
 .seat-row {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 5px;
+  gap: 6px;
 }
 
 .seat {
-  padding: 7px 4px;
+  padding: 9px 5px;
   border-radius: var(--radius-sm);
   border: 1.5px solid var(--border);
   background: var(--bg-sunken);
@@ -208,13 +208,13 @@ body {
 .seat .code {
   display: block;
   font-weight: 700;
-  font-size: 13px;
+  font-size: 14.5px;
 }
 
 .seat .name {
   display: block;
-  font-size: 10px;
-  margin-top: 1px;
+  font-size: 11px;
+  margin-top: 2px;
   opacity: 0.75;
 }
 
@@ -222,17 +222,17 @@ body {
 .scenario-list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
 }
 
 .scenario-chip {
-  padding: 8px 10px;
+  padding: 10px 12px;
   border-radius: var(--radius-sm);
   border: 1.5px solid transparent;
   background: var(--bg-sunken);
   color: var(--text-dim);
   cursor: pointer;
-  font-size: 12.5px;
+  font-size: 13.5px;
   font-family: inherit;
   text-align: left;
   transition: border-color 0.12s, background 0.12s, color 0.12s;
@@ -264,12 +264,12 @@ body {
 
 .situation {
   margin: 0;
-  padding: 11px 14px;
+  padding: 13px 16px;
   border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--accent) 8%, var(--bg-raised));
   border-left: 3px solid var(--accent);
-  font-size: 13.5px;
-  line-height: 1.55;
+  font-size: 14.5px;
+  line-height: 1.6;
 }
 
 .workspace {
@@ -395,8 +395,8 @@ body {
 .legend {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
-  font-size: 11.5px;
+  gap: 14px;
+  font-size: 12.5px;
   color: var(--text-faint);
   justify-content: center;
   flex-shrink: 0;
@@ -405,12 +405,12 @@ body {
 .legend span {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
 }
 
 .legend i {
-  width: 10px;
-  height: 10px;
+  width: 11px;
+  height: 11px;
   border-radius: 2px;
   display: inline-block;
 }
@@ -419,7 +419,7 @@ body {
 
 .verdict {
   border-radius: var(--radius);
-  padding: 16px 16px 18px;
+  padding: 20px 20px 22px;
   border: 1px solid var(--border);
   background: var(--bg-raised);
   flex-shrink: 0;
@@ -447,58 +447,58 @@ body {
 }
 
 .verdict.tone-unreachable h3 {
-  font-size: 17px;
+  font-size: 20px;
   color: var(--text-dim);
 }
 
 .verdict .hand-badge {
   display: inline-block;
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
-  padding: 2px 8px;
+  padding: 3px 10px;
   border-radius: 5px;
   background: var(--bg-sunken);
   border: 1px solid var(--border);
-  margin-bottom: 9px;
+  margin-bottom: 11px;
 }
 
 .verdict h3 {
   margin: 0;
-  font-size: 24px;
+  font-size: 29px;
   font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 1.25;
 }
 
 .verdict .subline {
-  margin: 7px 0 0;
-  font-size: 13px;
+  margin: 9px 0 0;
+  font-size: 14px;
   color: var(--text-dim);
 }
 
 .verdict .reason {
-  margin: 13px 0 0;
-  padding-top: 12px;
+  margin: 16px 0 0;
+  padding-top: 14px;
   border-top: 1px solid var(--border);
-  font-size: 12.5px;
+  font-size: 13.5px;
   color: var(--text-dim);
-  line-height: 1.6;
+  line-height: 1.65;
 }
 
 .bars {
-  margin-top: 14px;
+  margin-top: 17px;
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 9px;
 }
 
 .bar-row {
   display: grid;
-  grid-template-columns: 54px 1fr 40px;
+  grid-template-columns: 62px 1fr 46px;
   align-items: center;
-  gap: 9px;
-  font-size: 12.5px;
+  gap: 11px;
+  font-size: 13.5px;
 }
 
 .bar-row .who {
@@ -506,7 +506,7 @@ body {
 }
 
 .bar-row .track {
-  height: 8px;
+  height: 10px;
   border-radius: 999px;
   background: var(--bg-sunken);
   overflow: hidden;
@@ -523,14 +523,14 @@ body {
   text-align: right;
   color: var(--text-dim);
   font-variant-numeric: tabular-nums;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .bar-row .detail {
   grid-column: 2 / -1;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-faint);
-  margin-top: -3px;
+  margin-top: -4px;
 }
 
 /* ================================================================= 심화 */
@@ -544,9 +544,9 @@ details.advanced {
 }
 
 details.advanced > summary {
-  padding: 10px 14px;
+  padding: 12px 16px;
   cursor: pointer;
-  font-size: 12.5px;
+  font-size: 13.5px;
   font-weight: 600;
   color: var(--text-dim);
   list-style: none;
@@ -573,35 +573,35 @@ details.advanced > summary:hover {
 }
 
 .advanced-body {
-  padding: 0 14px 14px;
-  font-size: 12px;
+  padding: 0 16px 16px;
+  font-size: 13px;
   color: var(--text-dim);
-  line-height: 1.65;
+  line-height: 1.7;
 }
 
 .stat-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
-  margin-top: 10px;
+  gap: 9px;
+  margin-top: 12px;
 }
 
 .stat {
-  padding: 8px 10px;
+  padding: 10px 12px;
   border-radius: var(--radius-sm);
   background: var(--bg-sunken);
   border: 1px solid var(--border);
 }
 
 .stat .k {
-  font-size: 11px;
+  font-size: 11.5px;
   color: var(--text-faint);
 }
 
 .stat .v {
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 650;
-  margin-top: 1px;
+  margin-top: 2px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -623,8 +623,9 @@ details.advanced > summary:hover {
 
 /* ============================================================== 반응형 */
 
-/* 결론 카드를 밀어낼 만큼 좁아지면 매트릭스 아래로 내린다. */
-@media (max-width: 1080px) {
+/* 결론 카드를 밀어낼 만큼 좁아지면 매트릭스 아래로 내린다.
+   사이드바 276 + 결론 404 + 여백을 빼고도 매트릭스가 쓸 만하게 남는 지점이 기준이다. */
+@media (max-width: 1180px) {
   .workspace {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto auto;
